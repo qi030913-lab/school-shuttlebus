@@ -3,31 +3,6 @@
   <view class="vehicles-glow vehicles-glow-two"></view>
 
   <view class="vehicles-content">
-    <view class="overview-card">
-      <view class="overview-label">在线车辆详情</view>
-      <view class="overview-title">{{routeName || '当前线路'}}</view>
-      <view class="overview-subtitle">服务时段 {{serviceTime || '--'}}</view>
-
-      <view class="overview-meta">
-        <view class="socket-pill {{socketStatusClass}}">{{socketStatusText}}</view>
-        <view class="update-block">
-          <view class="update-label">最近刷新</view>
-          <view class="update-time">{{lastUpdateText}}</view>
-        </view>
-      </view>
-
-      <view class="overview-stats">
-        <view class="overview-stat">
-          <view class="overview-stat-label">在线车辆</view>
-          <view class="overview-stat-value">{{liveVehicleCount}}</view>
-        </view>
-        <view class="overview-stat overview-stat-warm">
-          <view class="overview-stat-label">已收车</view>
-          <view class="overview-stat-value">{{stoppedVehicleCount}}</view>
-        </view>
-      </view>
-    </view>
-
     <view class="list-card">
       <view class="list-head">
         <view>
