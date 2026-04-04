@@ -243,26 +243,7 @@ Page({
   applyVehicles(vehicles, fromSocket) {
     const decoratedVehicles = vehicles.map(item => this.decorateVehicle(item))
 
-    const vehicleMarkers = decoratedVehicles
-      .filter(item => item.latitude !== null && item.longitude !== null)
-      .map((item, index) => ({
-        id: index + 1,
-        latitude: item.latitude,
-        longitude: item.longitude,
-        width: 30,
-        height: 30,
-        callout: {
-          content: item.vehicleId,
-          display: 'ALWAYS',
-          fontSize: 12,
-          padding: 6,
-          borderRadius: 16,
-          color: '#ffffff',
-          bgColor: item.status === 'RUNNING' ? '#0f766e' : '#9aa8b4',
-          borderColor: item.status === 'RUNNING' ? '#0f766e' : '#9aa8b4',
-          borderWidth: 1
-        }
-      }))
+    const vehicleMarkers = this.buildVehicleMarkers(decoratedVehicles)
 
     const nextState = {
       vehicles: decoratedVehicles,
@@ -281,6 +262,107 @@ Page({
 
     this.setData(nextState)
     this.updateLastUpdate(fromSocket ? '实时推送' : '接口刷新')
+  },
+
+  buildVehicleMarkers(vehicles) {
+    const clusters = []
+    let markerId = 1
+
+    vehicles
+      .filter(item => item.latitude !== null && item.longitude !== null)
+      .forEach((item) => {
+        const cluster = this.findNearbyMarkerCluster(clusters, item.latitude, item.longitude)
+        if (cluster) {
+          cluster.items.push(item)
+          return
+        }
+
+        clusters.push({
+          anchorLatitude: item.latitude,
+          anchorLongitude: item.longitude,
+          items: [item]
+        })
+      })
+
+    const markers = []
+
+    clusters.forEach((cluster) => {
+      cluster.items.forEach((item, index) => {
+        const displayPoint = this.getMarkerDisplayPoint(
+          cluster.anchorLatitude,
+          cluster.anchorLongitude,
+          index,
+          cluster.items.length
+        )
+
+        markers.push({
+          id: markerId++,
+          latitude: displayPoint.latitude,
+          longitude: displayPoint.longitude,
+          width: 30,
+          height: 30,
+          callout: {
+            content: item.vehicleId,
+            display: 'ALWAYS',
+            fontSize: 12,
+            padding: 6,
+            borderRadius: 16,
+            color: '#ffffff',
+            bgColor: item.status === 'RUNNING' ? '#0f766e' : '#9aa8b4',
+            borderColor: item.status === 'RUNNING' ? '#0f766e' : '#9aa8b4',
+            borderWidth: 1
+          }
+        })
+      })
+    })
+
+    return markers
+  },
+
+  findNearbyMarkerCluster(clusters, latitude, longitude) {
+    const MAX_OVERLAP_DISTANCE_METERS = 18
+    return clusters.find(cluster => (
+      this.calculateDistanceMeters(
+        cluster.anchorLatitude,
+        cluster.anchorLongitude,
+        latitude,
+        longitude
+      ) <= MAX_OVERLAP_DISTANCE_METERS
+    ))
+  },
+
+  getMarkerDisplayPoint(latitude, longitude, index, total) {
+    if (total <= 1) {
+      return { latitude, longitude }
+    }
+
+    const markersPerRing = 6
+    const ringIndex = Math.floor(index / markersPerRing)
+    const positionInRing = index % markersPerRing
+    const pointsInThisRing = Math.min(markersPerRing, total - ringIndex * markersPerRing)
+    const radiusMeters = 12 + ringIndex * 8
+    const angle = (Math.PI * 2 * positionInRing) / Math.max(pointsInThisRing, 1)
+
+    const latitudeOffset = (radiusMeters * Math.sin(angle)) / 111320
+    const longitudeOffset = (radiusMeters * Math.cos(angle))
+      / (111320 * Math.max(Math.cos((latitude * Math.PI) / 180), 0.2))
+
+    return {
+      latitude: latitude + latitudeOffset,
+      longitude: longitude + longitudeOffset
+    }
+  },
+
+  calculateDistanceMeters(lat1, lng1, lat2, lng2) {
+    const toRadians = degree => (degree * Math.PI) / 180
+    const earthRadius = 6371000
+    const dLat = toRadians(lat2 - lat1)
+    const dLng = toRadians(lng2 - lng1)
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+      + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2))
+      * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return earthRadius * c
   },
 
   decorateVehicle(item) {

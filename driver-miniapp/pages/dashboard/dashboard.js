@@ -309,10 +309,31 @@ Page({
   async startTrip() {
     try {
       await request('/api/driver/start', 'POST', {})
+      await this.tryUploadStartupLocation()
       this.setData({ tripStatus: '运行中' })
       wx.showToast({ title: '已发车', icon: 'success' })
     } catch (e) {
       wx.showToast({ title: e.message || e.msg || '发车失败', icon: 'none' })
+    }
+  },
+
+  async tryUploadStartupLocation() {
+    try {
+      if (this.latestLocation) {
+        await this.uploadLocation(this.latestLocation, true)
+        return
+      }
+
+      const hasPermission = await this.ensureLocationPermission()
+      if (!hasPermission) {
+        return
+      }
+
+      const location = this.normalizeLocation(await this.getLocation())
+      this.latestLocation = location
+      this.updateLocationPanel(location)
+      await this.uploadLocation(location, true)
+    } catch (e) {
     }
   },
 
