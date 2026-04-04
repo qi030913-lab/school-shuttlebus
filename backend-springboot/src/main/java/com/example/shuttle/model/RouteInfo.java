@@ -1,13 +1,9 @@
 package com.example.shuttle.model;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class RouteInfo {
     private String routeId;
     private String routeName;
     private String serviceTime;
-    private List<StationInfo> stations = new ArrayList<>();
 
     public String getRouteId() {
         return routeId;
@@ -33,11 +29,4 @@ public class RouteInfo {
         this.serviceTime = serviceTime;
     }
 
-    public List<StationInfo> getStations() {
-        return stations;
-    }
-
-    public void setStations(List<StationInfo> stations) {
-        this.stations = stations;
-    }
 }

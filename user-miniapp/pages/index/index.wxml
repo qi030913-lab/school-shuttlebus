@@ -1,42 +1,129 @@
-<view class="container">
-  <view class="card">
-    <view class="title">线路选择</view>
-    <picker mode="selector" range="{{routes}}" range-key="routeName" value="{{routeIndex}}" bindchange="onRouteChange">
-      <view class="input">{{routes.length ? routes[routeIndex].routeName + '（' + routes[routeIndex].serviceTime + '）' : '加载中...'}}</view>
-    </picker>
-  </view>
+<view class="page-shell">
+  <view class="glow glow-one"></view>
+  <view class="glow glow-two"></view>
 
-  <view class="card">
-    <view class="title">站点列表</view>
-    <block wx:if="{{stations.length}}">
-      <view class="station-list">
-        <view wx:for="{{stations}}" wx:key="stationId" class="station-tag">{{item.sequenceNo}}. {{item.stationName}}</view>
+  <view class="page-content">
+    <view class="hero-card">
+      <view class="hero-badge">实时摆渡车看板</view>
+      <view class="hero-title">{{routeName || '摆渡线路总览'}}</view>
+      <view class="hero-subtitle">{{routeServiceTime ? '服务时段 ' + routeServiceTime : '选择线路后即可查看车辆实时位置与地图更新'}}</view>
+
+      <view class="route-selector">
+        <view class="field-label">当前线路</view>
+        <picker mode="selector" range="{{routes}}" range-key="routeName" value="{{routeIndex}}" bindchange="onRouteChange">
+          <view class="route-picker">
+            <view class="route-picker-main">{{routes.length ? routes[routeIndex].routeName : '加载中...'}}</view>
+            <view class="route-picker-sub">{{routes.length ? routes[routeIndex].serviceTime : '正在加载线路信息'}}</view>
+          </view>
+        </picker>
       </view>
-    </block>
-    <block wx:else>
-      <view class="small">暂无站点数据</view>
-    </block>
-  </view>
 
-  <view class="card">
-    <view class="title">在线摆渡车</view>
-    <button size="mini" type="primary" bindtap="loadOverview">手动刷新</button>
-    <block wx:if="{{vehicles.length}}">
-      <view wx:for="{{vehicles}}" wx:key="vehicleId" class="item">
-        <view class="vehicle-name">{{item.vehicleId}} - {{item.driverName || '未登记司机'}}</view>
-        <view class="small">线路：{{item.routeName || '--'}}</view>
-        <view class="small">状态：{{item.status || '未知'}}</view>
-        <view class="small">最近站点：{{item.nearestStationName || '--'}}，预计 {{item.etaMinutes || '--'}} 分钟</view>
-        <view class="small">更新时间：{{item.updateTime || '--'}}</view>
+      <view class="hero-meta">
+        <view class="socket-pill {{socketStatusClass}}">{{socketStatusText}}</view>
+        <view class="update-meta">
+          <text class="update-label">{{lastUpdateMode}}</text>
+          <text class="update-time">{{lastUpdateText}}</text>
+        </view>
       </view>
-    </block>
-    <block wx:else>
-      <view class="small">当前线路暂无车辆数据</view>
-    </block>
-  </view>
+    </view>
 
-  <view class="card">
-    <view class="title">地图预览</view>
-    <map longitude="{{mapLongitude}}" latitude="{{mapLatitude}}" scale="16" markers="{{markers}}" polyline="{{polyline}}" style="width: 100%; height: 500rpx;"></map>
+    <view class="stats-grid">
+      <view class="stat-card">
+        <view class="stat-label">在线车辆</view>
+        <view class="stat-value">{{liveVehicleCount}}</view>
+        <view class="stat-hint">当前线路可见车辆</view>
+      </view>
+      <view class="stat-card accent-card">
+        <view class="stat-label">运行中</view>
+        <view class="stat-value">{{movingVehicleCount}}</view>
+        <view class="stat-hint">正在发车中的车辆</view>
+      </view>
+      <view class="stat-card">
+        <view class="stat-label">已定位</view>
+        <view class="stat-value">{{locatedVehicleCount}}</view>
+        <view class="stat-hint">已拿到经纬度的车辆</view>
+      </view>
+      <view class="stat-card warm-card">
+        <view class="stat-label">已收车</view>
+        <view class="stat-value">{{stoppedVehicleCount}}</view>
+        <view class="stat-hint">当前线路已结束运行的车辆</view>
+      </view>
+    </view>
+
+    <view class="panel-card map-panel">
+      <view class="panel-head">
+        <view>
+          <view class="panel-title">线路地图</view>
+          <view class="panel-subtitle">校园招手即停，地图仅展示车辆实时位置，不展示固定站点</view>
+        </view>
+        <button class="refresh-btn" size="mini" loading="{{refreshing}}" bindtap="loadOverview">刷新</button>
+      </view>
+      <map
+        class="map-view"
+        longitude="{{mapLongitude}}"
+        latitude="{{mapLatitude}}"
+        scale="15"
+        markers="{{markers}}"
+        polyline="{{polyline}}"
+        show-location
+      ></map>
+    </view>
+
+    <view class="panel-card">
+      <view class="panel-head compact-head">
+        <view>
+          <view class="panel-title">在线车辆</view>
+          <view class="panel-subtitle">实时展示司机、状态、速度与当前位置</view>
+        </view>
+      </view>
+
+      <block wx:if="{{vehicles.length}}">
+        <view class="vehicle-list">
+          <view wx:for="{{vehicles}}" wx:key="vehicleId" class="vehicle-card">
+            <view class="vehicle-top">
+              <view>
+                <view class="vehicle-id">{{item.vehicleId}}</view>
+                <view class="vehicle-driver">{{item.driverName || '未登记司机'}}</view>
+              </view>
+              <view class="vehicle-status {{item.statusClass}}">{{item.statusText}}</view>
+            </view>
+
+            <view class="vehicle-metrics">
+              <view class="metric-box">
+                <view class="metric-label">定位状态</view>
+                <view class="metric-value">{{item.coordinateText === '等待定位' ? '未定位' : '已定位'}}</view>
+              </view>
+              <view class="metric-box">
+                <view class="metric-label">速度</view>
+                <view class="metric-value">{{item.speedText}}</view>
+              </view>
+              <view class="metric-box">
+                <view class="metric-label">线路</view>
+                <view class="metric-value">{{item.routeName || '--'}}</view>
+              </view>
+              <view class="metric-box">
+                <view class="metric-label">实时连接</view>
+                <view class="metric-value">{{socketStatusText}}</view>
+              </view>
+            </view>
+
+            <view class="vehicle-footer">
+              <view class="footer-row">
+                <text class="footer-label">经纬度</text>
+                <text class="footer-value">{{item.coordinateText}}</text>
+              </view>
+              <view class="footer-row">
+                <text class="footer-label">更新时间</text>
+                <text class="footer-value">{{item.updateTimeText}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </block>
+
+      <block wx:else>
+        <view class="empty-block">当前线路暂时没有在线摆渡车</view>
+      </block>
+    </view>
   </view>
 </view>

@@ -11,9 +11,6 @@ public class VehicleLocation {
     private Double longitude;
     private Double speed;
     private String status;
-    private String nearestStationName;
-    private Double distanceToNearestStationMeters;
-    private Integer etaMinutes;
     private LocalDateTime updateTime;
 
     public String getVehicleId() {
@@ -78,30 +75,6 @@ public class VehicleLocation {
 
     public void setStatus(String status) {
         this.status = status;
-    }
-
-    public String getNearestStationName() {
-        return nearestStationName;
-    }
-
-    public void setNearestStationName(String nearestStationName) {
-        this.nearestStationName = nearestStationName;
-    }
-
-    public Double getDistanceToNearestStationMeters() {
-        return distanceToNearestStationMeters;
-    }
-
-    public void setDistanceToNearestStationMeters(Double distanceToNearestStationMeters) {
-        this.distanceToNearestStationMeters = distanceToNearestStationMeters;
-    }
-
-    public Integer getEtaMinutes() {
-        return etaMinutes;
-    }
-
-    public void setEtaMinutes(Integer etaMinutes) {
-        this.etaMinutes = etaMinutes;
     }
 
     public LocalDateTime getUpdateTime() {

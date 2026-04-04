@@ -12,8 +12,6 @@ Page({
     latitude: '--',
     longitude: '--',
     speed: '--',
-    nearestStationName: '--',
-    etaMinutes: '--',
     autoUpload: false,
     mockMode: false
   },
@@ -418,8 +416,6 @@ Page({
 
       this.updateLocationPanel(location)
       this.setData({
-        nearestStationName: result.nearestStationName || '--',
-        etaMinutes: result.etaMinutes !== null && result.etaMinutes !== undefined ? result.etaMinutes : '--',
         tripStatus: result.status === 'RUNNING' ? '运行中' : '已结束'
       })
 

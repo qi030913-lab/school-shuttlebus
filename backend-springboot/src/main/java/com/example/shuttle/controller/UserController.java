@@ -3,7 +3,6 @@ package com.example.shuttle.controller;
 import com.example.shuttle.model.ApiResponse;
 import com.example.shuttle.model.RouteInfo;
 import com.example.shuttle.model.RouteOverview;
-import com.example.shuttle.model.StationInfo;
 import com.example.shuttle.model.VehicleLocation;
 import com.example.shuttle.service.RouteService;
 import com.example.shuttle.service.VehicleLocationService;
@@ -29,11 +28,6 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.ok(routeService.getRoutes()));
     }
 
-    @GetMapping("/common/routes/{routeId}/stations")
-    public ResponseEntity<ApiResponse<List<StationInfo>>> getStations(@PathVariable String routeId) {
-        return ResponseEntity.ok(ApiResponse.ok(routeService.getStations(routeId)));
-    }
-
     @GetMapping("/user/vehicles")
     public ResponseEntity<ApiResponse<List<VehicleLocation>>> getAllVehicles(@RequestParam(required = false) String routeId) {
         return ResponseEntity.ok(ApiResponse.ok(vehicleLocationService.getByRouteId(routeId)));
@@ -52,7 +46,6 @@ public class UserController {
     public ResponseEntity<ApiResponse<RouteOverview>> getOverview(@RequestParam String routeId) {
         RouteOverview overview = new RouteOverview();
         overview.setRoute(routeService.getRoute(routeId));
-        overview.setStations(routeService.getStations(routeId));
         overview.setVehicles(vehicleLocationService.getByRouteId(routeId));
         return ResponseEntity.ok(ApiResponse.ok(overview));
     }

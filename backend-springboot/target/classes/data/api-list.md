@@ -4,11 +4,7 @@
 
 ### GET /api/common/routes
 
-查询全部线路与站点。
-
-### GET /api/common/routes/{routeId}/stations
-
-查询指定线路的站点列表。
+查询全部线路信息。
 
 ## 2. 司机端接口
 
@@ -27,65 +23,21 @@
 }
 ```
 
-返回示例：
-
-```json
-{
-  "success": true,
-  "message": "登录成功",
-  "data": {
-    "loginToken": "baf5...",
-    "mockMode": true,
-    "driver": {
-      "openId": "mock_xxx",
-      "driverName": "张师傅",
-      "vehicleId": "BUS-01",
-      "routeId": "R1",
-      "enabled": true
-    }
-  }
-}
-```
-
 ### GET /api/driver/me
 
 读取当前登录司机信息。
-
-请求头：
-
-```http
-X-Driver-Token: 登录成功返回的loginToken
-```
 
 ### POST /api/driver/start
 
 司机发车。
 
-请求头：
-
-```http
-X-Driver-Token: 登录成功返回的loginToken
-```
-
 ### POST /api/driver/stop
 
 司机收车。
 
-请求头：
-
-```http
-X-Driver-Token: 登录成功返回的loginToken
-```
-
 ### POST /api/driver/location
 
-上传车辆定位。
-
-请求头：
-
-```http
-X-Driver-Token: 登录成功返回的loginToken
-```
+上传车辆实时位置。
 
 请求体：
 
@@ -109,7 +61,7 @@ X-Driver-Token: 登录成功返回的loginToken
 
 ### GET /api/user/overview?routeId=R1
 
-返回某条线路的线路、站点、车辆整合视图。
+返回某条线路的线路信息与车辆实时视图。
 
 ## 4. WebSocket
 

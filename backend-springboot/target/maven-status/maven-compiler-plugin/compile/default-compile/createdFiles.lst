@@ -1,5 +1,4 @@
 com\example\shuttle\config\WechatMiniAppProperties.class
-com\example\shuttle\model\StationInfo.class
 com\example\shuttle\model\WxCode2SessionResult.class
 com\example\shuttle\ShuttleDemoApplication.class
 com\example\shuttle\controller\DriverController.class

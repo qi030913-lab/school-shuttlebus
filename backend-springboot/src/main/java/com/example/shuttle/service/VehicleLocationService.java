@@ -1,7 +1,6 @@
 package com.example.shuttle.service;
 
 import com.example.shuttle.model.RouteInfo;
-import com.example.shuttle.model.StationInfo;
 import com.example.shuttle.model.VehicleLocation;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -22,8 +21,7 @@ public class VehicleLocationService {
     }
 
     public VehicleLocation startTrip(String vehicleId, String driverName, String routeId) {
-        RouteInfo route = routeService.getRoute(routeId);
-        upsertRuntime(vehicleId, routeId, driverName, null, null, null, "RUNNING", null, null, null);
+        upsertRuntime(vehicleId, routeId, driverName, null, null, null, "RUNNING");
         return getByVehicleId(vehicleId);
     }
 
@@ -32,8 +30,15 @@ public class VehicleLocationService {
         if (current == null) {
             return null;
         }
-        upsertRuntime(vehicleId, current.getRouteId(), current.getDriverName(), current.getLatitude(), current.getLongitude(), current.getSpeed(),
-                "STOPPED", current.getNearestStationName(), current.getDistanceToNearestStationMeters(), 0);
+        upsertRuntime(
+                vehicleId,
+                current.getRouteId(),
+                current.getDriverName(),
+                current.getLatitude(),
+                current.getLongitude(),
+                current.getSpeed(),
+                "STOPPED"
+        );
         return getByVehicleId(vehicleId);
     }
 
@@ -44,7 +49,6 @@ public class VehicleLocationService {
         vehicleLocation.setLongitude(longitude);
         vehicleLocation.setSpeed(speed);
         vehicleLocation.setStatus("RUNNING");
-        fillRouteRuntimeFields(vehicleLocation);
         vehicleLocation.setUpdateTime(LocalDateTime.now());
 
         upsertRuntime(
@@ -54,10 +58,7 @@ public class VehicleLocationService {
                 latitude,
                 longitude,
                 speed,
-                vehicleLocation.getStatus(),
-                vehicleLocation.getNearestStationName(),
-                vehicleLocation.getDistanceToNearestStationMeters(),
-                vehicleLocation.getEtaMinutes()
+                vehicleLocation.getStatus()
         );
         insertHistory(vehicleId, routeId, latitude, longitude, speed);
         return getByVehicleId(vehicleId);
@@ -85,8 +86,7 @@ public class VehicleLocationService {
     private String baseSelect() {
         return """
                 SELECT vr.vehicle_id, vr.driver_name, vr.route_id, ri.route_name,
-                       vr.latitude, vr.longitude, vr.speed, vr.status,
-                       vr.nearest_station_name, vr.distance_to_station_meters, vr.eta_minutes, vr.updated_at
+                       vr.latitude, vr.longitude, vr.speed, vr.status, vr.updated_at
                 FROM vehicle_runtime vr
                 LEFT JOIN route_info ri ON vr.route_id = ri.route_id
                 """;
@@ -102,10 +102,6 @@ public class VehicleLocationService {
         vehicle.setLongitude(getNullableDouble(rs, "longitude"));
         vehicle.setSpeed(getNullableDouble(rs, "speed"));
         vehicle.setStatus(rs.getString("status"));
-        vehicle.setNearestStationName(rs.getString("nearest_station_name"));
-        vehicle.setDistanceToNearestStationMeters(getNullableDouble(rs, "distance_to_station_meters"));
-        Integer eta = rs.getInt("eta_minutes");
-        vehicle.setEtaMinutes(rs.wasNull() ? null : eta);
         if (rs.getTimestamp("updated_at") != null) {
             vehicle.setUpdateTime(rs.getTimestamp("updated_at").toLocalDateTime());
         }
@@ -119,13 +115,11 @@ public class VehicleLocationService {
 
     private void upsertRuntime(String vehicleId, String routeId, String driverName,
                                Double latitude, Double longitude, Double speed,
-                               String status, String nearestStationName,
-                               Double distanceToNearestStationMeters, Integer etaMinutes) {
+                               String status) {
         String sql = """
                 INSERT INTO vehicle_runtime(
-                    vehicle_id, route_id, driver_name, latitude, longitude, speed, status,
-                    nearest_station_name, distance_to_station_meters, eta_minutes, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    vehicle_id, route_id, driver_name, latitude, longitude, speed, status, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
                 ON DUPLICATE KEY UPDATE
                     route_id = VALUES(route_id),
                     driver_name = VALUES(driver_name),
@@ -133,13 +127,9 @@ public class VehicleLocationService {
                     longitude = VALUES(longitude),
                     speed = VALUES(speed),
                     status = VALUES(status),
-                    nearest_station_name = VALUES(nearest_station_name),
-                    distance_to_station_meters = VALUES(distance_to_station_meters),
-                    eta_minutes = VALUES(eta_minutes),
                     updated_at = NOW()
                 """;
-        jdbcTemplate.update(sql, vehicleId, routeId, driverName, latitude, longitude, speed, status,
-                nearestStationName, distanceToNearestStationMeters, etaMinutes);
+        jdbcTemplate.update(sql, vehicleId, routeId, driverName, latitude, longitude, speed, status);
     }
 
     private void insertHistory(String vehicleId, String routeId, Double latitude, Double longitude, Double speed) {
@@ -161,44 +151,4 @@ public class VehicleLocationService {
         vehicleLocation.setRouteName(route == null ? "未分配线路" : route.getRouteName());
     }
 
-    private void fillRouteRuntimeFields(VehicleLocation vehicleLocation) {
-        List<StationInfo> stations = routeService.getStations(vehicleLocation.getRouteId());
-        if (stations.isEmpty() || vehicleLocation.getLatitude() == null || vehicleLocation.getLongitude() == null) {
-            vehicleLocation.setNearestStationName(null);
-            vehicleLocation.setDistanceToNearestStationMeters(null);
-            vehicleLocation.setEtaMinutes(null);
-            return;
-        }
-
-        StationInfo nearest = null;
-        double minDistance = Double.MAX_VALUE;
-        for (StationInfo station : stations) {
-            double distance = distanceMeters(vehicleLocation.getLatitude(), vehicleLocation.getLongitude(), station.getLatitude(), station.getLongitude());
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearest = station;
-            }
-        }
-
-        vehicleLocation.setNearestStationName(nearest == null ? null : nearest.getStationName());
-        vehicleLocation.setDistanceToNearestStationMeters(Math.round(minDistance * 10.0) / 10.0);
-
-        double speedMps = vehicleLocation.getSpeed() == null || vehicleLocation.getSpeed() <= 0 ? 4.5 : vehicleLocation.getSpeed();
-        int etaMinutes = (int) Math.max(1, Math.ceil(minDistance / speedMps / 60.0));
-        if ("STOPPED".equals(vehicleLocation.getStatus())) {
-            etaMinutes = 0;
-        }
-        vehicleLocation.setEtaMinutes(etaMinutes);
-    }
-
-    private double distanceMeters(double lat1, double lon1, double lat2, double lon2) {
-        double earthRadius = 6371000;
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return earthRadius * c;
-    }
 }

@@ -1,8 +1,10 @@
+create database IF NOT EXISTS shuttle_demo;
+use shuttle_demo;
+
 DROP TABLE IF EXISTS vehicle_location_history;
 DROP TABLE IF EXISTS vehicle_runtime;
 DROP TABLE IF EXISTS driver_login_session;
 DROP TABLE IF EXISTS driver_account;
-DROP TABLE IF EXISTS station_info;
 DROP TABLE IF EXISTS route_info;
 
 CREATE TABLE route_info (
@@ -11,18 +13,6 @@ CREATE TABLE route_info (
   route_name VARCHAR(64) NOT NULL,
   service_time VARCHAR(64),
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE station_info (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  station_id VARCHAR(32) NOT NULL UNIQUE,
-  route_id VARCHAR(32) NOT NULL,
-  station_name VARCHAR(64) NOT NULL,
-  sequence_no INT NOT NULL,
-  latitude DECIMAL(10,6) NOT NULL,
-  longitude DECIMAL(10,6) NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_station_route(route_id)
 );
 
 CREATE TABLE driver_account (
@@ -61,9 +51,6 @@ CREATE TABLE vehicle_runtime (
   longitude DECIMAL(10,6),
   speed DECIMAL(10,2),
   status VARCHAR(16) NOT NULL,
-  nearest_station_name VARCHAR(64),
-  distance_to_station_meters DECIMAL(10,1),
-  eta_minutes INT,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_runtime_route(route_id)
 );

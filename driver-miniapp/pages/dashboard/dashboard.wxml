@@ -9,8 +9,6 @@
     <view class="row"><text>纬度：</text><text>{{latitude}}</text></view>
     <view class="row"><text>经度：</text><text>{{longitude}}</text></view>
     <view class="row"><text>速度：</text><text>{{speed}}</text></view>
-    <view class="row"><text>最近站点：</text><text>{{nearestStationName}}</text></view>
-    <view class="row"><text>预计到站：</text><text>{{etaMinutes}} 分钟</text></view>
 
     <view class="button-group">
       <button type="primary" bindtap="startTrip">开始发车</button>
