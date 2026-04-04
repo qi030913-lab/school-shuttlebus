@@ -1,0 +1,23 @@
+<view class="container">
+  <view class="card">
+    <view class="title">司机面板</view>
+    <view class="row"><text>司机：</text><text>{{driverName}}</text></view>
+    <view class="row"><text>车辆：</text><text>{{vehicleId}}</text></view>
+    <view class="row"><text>线路：</text><text>{{routeName}}（{{routeId}}）</text></view>
+    <view class="row"><text>登录模式：</text><text>{{mockMode ? 'Mock 模式' : '微信真实登录'}}</text></view>
+    <view class="row"><text>状态：</text><text>{{tripStatus}}</text></view>
+    <view class="row"><text>纬度：</text><text>{{latitude}}</text></view>
+    <view class="row"><text>经度：</text><text>{{longitude}}</text></view>
+    <view class="row"><text>速度：</text><text>{{speed}}</text></view>
+    <view class="row"><text>最近站点：</text><text>{{nearestStationName}}</text></view>
+    <view class="row"><text>预计到站：</text><text>{{etaMinutes}} 分钟</text></view>
+
+    <view class="button-group">
+      <button type="primary" bindtap="startTrip">开始发车</button>
+      <button bindtap="uploadOnce">上传一次位置</button>
+      <button bindtap="toggleAutoUpload">{{autoUpload ? '停止自动上传' : '开启自动上传'}}</button>
+      <button type="warn" bindtap="stopTrip">结束发车</button>
+      <button bindtap="logout">退出登录</button>
+    </view>
+  </view>
+</view>

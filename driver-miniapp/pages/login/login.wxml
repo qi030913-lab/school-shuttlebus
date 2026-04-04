@@ -1,0 +1,17 @@
+<view class="container">
+  <view class="card">
+    <view class="title">司机微信登录</view>
+    <view class="sub-title">先通过 wx.login 获取 code，再绑定司机与车辆</view>
+    <view class="label">司机姓名</view>
+    <input class="input" placeholder="例如：张师傅" value="{{driverName}}" bindinput="onDriverNameInput" />
+    <view class="label">车辆编号</view>
+    <input class="input" placeholder="例如：BUS-01" value="{{vehicleId}}" bindinput="onVehicleIdInput" />
+    <view class="label">所属线路</view>
+    <picker mode="selector" range="{{routes}}" range-key="routeName" value="{{routeIndex}}" bindchange="onRouteChange">
+      <view class="input">{{routeText}}</view>
+    </picker>
+    <button wx:if="{{routeLoadError}}" size="mini" plain bindtap="onRetryRoutes">重新加载线路</button>
+    <button type="primary" class="primary-btn" loading="{{logging}}" bindtap="login">微信登录并进入司机面板</button>
+    <view class="hint">本地 Demo 默认支持 mock 登录。接入真实微信登录后，将自动调用后端换取 openid。</view>
+  </view>
+</view>

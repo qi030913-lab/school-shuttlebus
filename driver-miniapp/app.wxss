@@ -1,0 +1,53 @@
+page {
+  background: #f5f7fb;
+  color: #333;
+}
+
+.container {
+  padding: 24rpx;
+}
+
+.card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 8rpx 20rpx rgba(0,0,0,0.05);
+}
+
+.title {
+  font-size: 34rpx;
+  font-weight: 600;
+  margin-bottom: 20rpx;
+}
+
+.label {
+  font-size: 28rpx;
+  margin-bottom: 12rpx;
+  color: #666;
+}
+
+.input {
+  background: #f7f8fa;
+  border-radius: 12rpx;
+  padding: 18rpx;
+  margin-bottom: 20rpx;
+}
+
+.primary-btn {
+  margin-top: 12rpx;
+}
+
+.row {
+  display: flex;
+  gap: 16rpx;
+}
+
+.row button {
+  flex: 1;
+}
+
+.value {
+  font-size: 30rpx;
+  margin-bottom: 10rpx;
+}
