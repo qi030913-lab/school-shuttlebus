@@ -183,6 +183,12 @@
   color: rgba(255, 255, 255, 0.64);
 }
 
+.hero-speed-distance {
+  margin-top: 6rpx;
+  font-size: 20rpx;
+  color: rgba(196, 245, 232, 0.88);
+}
+
 .hero-speed-value {
   font-size: 26rpx;
   line-height: 1;

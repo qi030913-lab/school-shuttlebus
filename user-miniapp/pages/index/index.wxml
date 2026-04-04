@@ -19,13 +19,14 @@
           <view class="stat-hint hero-stat-hint">当前线路可见车辆</view>
         </view>
         <view class="stat-card hero-stat-card hero-info-card">
-          <view class="stat-label hero-stat-label">实时车速</view>
+          <view class="stat-label hero-stat-label">实时车辆</view>
           <block wx:if="{{vehicles.length}}">
             <view class="hero-speed-list">
               <view wx:for="{{vehicles}}" wx:key="vehicleId" class="hero-speed-row">
                 <view class="hero-speed-main">
                   <view class="hero-speed-vehicle">{{item.vehicleId}}</view>
                   <view class="hero-speed-driver">{{item.driverName || '未登记司机'}}</view>
+                  <view class="hero-speed-distance">{{item.distanceText}}</view>
                 </view>
                 <view class="hero-speed-value">{{item.speedText}}</view>
               </view>
@@ -42,8 +43,9 @@
       <view class="panel-head">
         <view>
           <view class="panel-title">线路地图</view>
+          <view class="panel-subtitle">{{userLocationText}}</view>
         </view>
-        <button class="refresh-btn" size="mini" loading="{{refreshing}}" bindtap="loadOverview">刷新</button>
+        <button class="refresh-btn" size="mini" loading="{{refreshing}}" bindtap="refreshAll">刷新</button>
       </view>
       <map
         class="map-view"
@@ -52,9 +54,7 @@
         scale="15"
         markers="{{markers}}"
         polyline="{{polyline}}"
-        show-location
       ></map>
     </view>
-
   </view>
 </view>

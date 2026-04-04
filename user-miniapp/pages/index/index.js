@@ -1,7 +1,7 @@
 const { request, WS_URL } = require('../../utils')
 
 const VEHICLE_MARKER_ICON = '/assets/bus-marker.png'
-
+const USER_MARKER_ICON = '/assets/user-marker.png'
 const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
 const SOCKET_RETRY_MAX_MS = 15000
@@ -23,7 +23,8 @@ Page({
     socketStatusClass: 'status-connecting',
     lastUpdateMode: '等待数据',
     lastUpdateText: '--:--:--',
-    liveVehicleCount: 0
+    liveVehicleCount: 0,
+    userLocationText: '允许定位后可显示你与车辆的距离'
   },
 
   async onLoad() {
@@ -32,12 +33,19 @@ Page({
     this.socketClosedByUser = false
     this.socketRetryCount = 0
     this.shouldResetMapCenter = true
+    this.userLocation = null
+    this.latestVehiclesRaw = []
+    this.locationPollTimer = null
 
+    await this.refreshUserLocation(true)
     await this.loadRoutes()
     this.connectSocket()
+
     this.pollTimer = setInterval(() => {
       this.loadOverview(false)
     }, POLL_INTERVAL_MS)
+
+    this.startLocationPolling()
   },
 
   onUnload() {
@@ -45,11 +53,116 @@ Page({
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
+    if (this.locationPollTimer) {
+      clearInterval(this.locationPollTimer)
+      this.locationPollTimer = null
+    }
     this.clearSocketReconnectTimer()
     this.socketClosedByUser = true
     if (this.socketTask) {
       this.socketTask.close()
       this.socketTask = null
+    }
+  },
+
+  startLocationPolling() {
+    if (this.locationPollTimer) {
+      return
+    }
+    this.locationPollTimer = setInterval(() => {
+      this.refreshUserLocation(true)
+    }, POLL_INTERVAL_MS)
+  },
+
+  getSetting() {
+    return new Promise((resolve, reject) => {
+      wx.getSetting({
+        success: resolve,
+        fail: reject
+      })
+    })
+  },
+
+  authorizeLocation() {
+    return new Promise((resolve, reject) => {
+      wx.authorize({
+        scope: 'scope.userLocation',
+        success: resolve,
+        fail: reject
+      })
+    })
+  },
+
+  getLocation() {
+    return new Promise((resolve, reject) => {
+      wx.getLocation({
+        type: 'gcj02',
+        success: resolve,
+        fail: reject
+      })
+    })
+  },
+
+  async ensureLocationPermission(silent = true) {
+    try {
+      const settingRes = await this.getSetting()
+      const locationAuthorized = settingRes.authSetting && settingRes.authSetting['scope.userLocation']
+
+      if (locationAuthorized === true) {
+        return true
+      }
+
+      if (locationAuthorized !== false) {
+        try {
+          await this.authorizeLocation()
+          return true
+        } catch (e) {
+          if (!silent) {
+            wx.showToast({ title: '请允许定位后再查看距离', icon: 'none' })
+          }
+          return false
+        }
+      }
+
+      if (!silent) {
+        wx.showToast({ title: '定位权限已关闭，请在设置中开启', icon: 'none' })
+      }
+      return false
+    } catch (e) {
+      if (!silent) {
+        wx.showToast({ title: '定位权限检查失败', icon: 'none' })
+      }
+      return false
+    }
+  },
+
+  async refreshUserLocation(silent = true) {
+    const hasPermission = await this.ensureLocationPermission(silent)
+    if (!hasPermission) {
+      if (!this.userLocation) {
+        this.setData({
+          userLocationText: '允许定位后可显示你与车辆的距离'
+        })
+      }
+      return false
+    }
+
+    try {
+      const location = await this.getLocation()
+      this.userLocation = {
+        latitude: Number(location.latitude),
+        longitude: Number(location.longitude)
+      }
+      this.setData({
+        userLocationText: '已显示你的位置，并连线到在线车辆'
+      })
+      this.applyVehicles(this.latestVehiclesRaw, false)
+      return true
+    } catch (e) {
+      if (!silent) {
+        wx.showToast({ title: '获取你的定位失败', icon: 'none' })
+      }
+      return false
     }
   },
 
@@ -189,6 +302,11 @@ Page({
     this.loadOverview(true)
   },
 
+  async refreshAll() {
+    await this.refreshUserLocation(false)
+    await this.loadOverview(true)
+  },
+
   goToVehiclesPage() {
     const {
       currentRouteId,
@@ -242,18 +360,22 @@ Page({
   },
 
   applyVehicles(vehicles, fromSocket) {
-    const decoratedVehicles = vehicles.map(item => this.decorateVehicle(item))
+    this.latestVehiclesRaw = Array.isArray(vehicles) ? vehicles : []
+    const decoratedVehicles = this.latestVehiclesRaw.map(item => this.decorateVehicle(item))
     const vehicleMarkers = this.buildVehicleMarkers(decoratedVehicles)
+    const userMarker = this.buildUserMarker()
+    const markers = userMarker ? [...vehicleMarkers, userMarker] : vehicleMarkers
+    const distanceLines = this.buildDistanceLines(decoratedVehicles)
 
     const nextState = {
       vehicles: decoratedVehicles,
-      markers: vehicleMarkers,
-      polyline: [],
+      markers,
+      polyline: distanceLines,
       liveVehicleCount: decoratedVehicles.length
     }
 
     if (this.shouldResetMapCenter) {
-      const firstMarker = vehicleMarkers[0]
+      const firstMarker = vehicleMarkers[0] || userMarker
       nextState.mapLatitude = firstMarker ? firstMarker.latitude : 39.909
       nextState.mapLongitude = firstMarker ? firstMarker.longitude : 116.397
       this.shouldResetMapCenter = false
@@ -261,6 +383,60 @@ Page({
 
     this.setData(nextState)
     this.updateLastUpdate(fromSocket ? '实时推送' : '接口刷新')
+  },
+
+  buildUserMarker() {
+    if (!this.userLocation) {
+      return null
+    }
+
+    return {
+      id: 999999,
+      latitude: this.userLocation.latitude,
+      longitude: this.userLocation.longitude,
+      iconPath: USER_MARKER_ICON,
+      width: 28,
+      height: 28,
+      anchor: {
+        x: 0.5,
+        y: 0.5
+      },
+      callout: {
+        content: '我',
+        display: 'BYCLICK',
+        fontSize: 11,
+        padding: 4,
+        borderRadius: 12,
+        color: '#0f172a',
+        bgColor: '#ffffff',
+        borderColor: '#93c5fd',
+        borderWidth: 1
+      }
+    }
+  },
+
+  buildDistanceLines(vehicles) {
+    if (!this.userLocation) {
+      return []
+    }
+
+    return vehicles
+      .filter(item => item.latitude !== null && item.longitude !== null)
+      .map(item => ({
+        points: [
+          {
+            latitude: this.userLocation.latitude,
+            longitude: this.userLocation.longitude
+          },
+          {
+            latitude: item.latitude,
+            longitude: item.longitude
+          }
+        ],
+        color: item.status === 'RUNNING' ? '#0f766ecc' : '#94a3b8cc',
+        width: 4,
+        dottedLine: true
+      }))
   },
 
   buildVehicleMarkers(vehicles) {
@@ -374,6 +550,14 @@ Page({
     const longitude = this.parseCoordinate(item.longitude)
     const speed = typeof item.speed === 'number' ? item.speed : 0
     const status = item.status || 'UNKNOWN'
+    const distanceMeters = this.userLocation && latitude !== null && longitude !== null
+      ? this.calculateDistanceMeters(
+        this.userLocation.latitude,
+        this.userLocation.longitude,
+        latitude,
+        longitude
+      )
+      : null
     const updateTimeText = this.formatUpdateTime(item.updateTime)
     const statusTextMap = {
       RUNNING: '运行中',
@@ -395,6 +579,7 @@ Page({
       statusClass: statusClassMap[status] || 'vehicle-status-idle',
       latitudeText: this.formatCoordinateText(latitude),
       longitudeText: this.formatCoordinateText(longitude),
+      distanceText: distanceMeters === null ? '未开启用户定位' : `距离你 ${this.formatDistance(distanceMeters)}`,
       coordinateText: latitude !== null && longitude !== null
         ? `${latitude.toFixed(6)} / ${longitude.toFixed(6)}`
         : '等待定位',
@@ -413,6 +598,16 @@ Page({
 
   formatCoordinateText(value) {
     return value !== null ? value.toFixed(6) : '--'
+  },
+
+  formatDistance(distanceMeters) {
+    if (distanceMeters < 1000) {
+      return `${Math.round(distanceMeters)}m`
+    }
+    if (distanceMeters < 10000) {
+      return `${(distanceMeters / 1000).toFixed(1)}km`
+    }
+    return `${Math.round(distanceMeters / 1000)}km`
   },
 
   updateLastUpdate(mode) {
