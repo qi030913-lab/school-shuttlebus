@@ -1,5 +1,7 @@
 const { request, WS_URL } = require('../../utils')
 
+const VEHICLE_MARKER_ICON = '/assets/bus-marker.png'
+
 const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
 const SOCKET_RETRY_MAX_MS = 15000
@@ -296,8 +298,13 @@ Page({
           id: markerId++,
           latitude: displayPoint.latitude,
           longitude: displayPoint.longitude,
-          width: 30,
-          height: 30,
+          iconPath: VEHICLE_MARKER_ICON,
+          width: 34,
+          height: 34,
+          anchor: {
+            x: 0.5,
+            y: 0.7
+          },
           callout: {
             content: item.vehicleId,
             display: 'ALWAYS',

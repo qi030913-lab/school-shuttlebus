@@ -34,6 +34,13 @@ mock-login-enabled: true
 mvn spring-boot:run
 ```
 
+## Profiles
+
+- Default profile is `dev`
+- Run development explicitly: `mvn spring-boot:run -Dspring-boot.run.profiles=dev`
+- Run production explicitly: `mvn spring-boot:run -Dspring-boot.run.profiles=prod`
+- Production requires `WECHAT_MINIAPP_APP_ID` and `WECHAT_MINIAPP_SECRET`
+
 ## 当前核心接口
 
 - `POST /api/driver/wx-login` 司机微信登录

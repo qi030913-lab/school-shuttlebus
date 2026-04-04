@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: shuttle-demo-v3
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/shuttle_demo?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
@@ -18,7 +20,4 @@ spring:
 
 wechat:
   miniapp:
-    app-id: your-miniapp-appid
-    secret: your-miniapp-secret
-    mock-login-enabled: true
     session-expire-days: 7

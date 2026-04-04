@@ -38,8 +38,11 @@ public class WechatAuthService {
         if (code == null || code.isBlank()) {
             throw new IllegalArgumentException("code 不能为空");
         }
-        if (properties.isMockLoginEnabled() || isBlank(properties.getAppId()) || isBlank(properties.getSecret())) {
+        if (properties.isMockLoginEnabled()) {
             return buildMockResult(code);
+        }
+        if (isBlank(properties.getAppId()) || isBlank(properties.getSecret())) {
+            throw new IllegalStateException("Wechat miniapp appId/secret is not configured while mock login is disabled");
         }
         try {
             String url = CODE_TO_SESSION_URL
