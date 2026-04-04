@@ -334,31 +334,35 @@
 
 .vehicle-footer {
   margin-top: 20rpx;
-  padding-top: 18rpx;
-  border-top: 1rpx solid #e2ebef;
+  padding: 18rpx 16rpx 16rpx;
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.78);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14rpx;
 }
 
 .footer-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 18rpx;
-  margin-top: 10rpx;
-}
-
-.footer-row:first-child {
-  margin-top: 0;
+  display: block;
+  padding: 12rpx 14rpx;
+  border-radius: 14rpx;
+  background: rgba(244, 248, 250, 0.96);
 }
 
 .footer-label {
+  display: block;
   font-size: 22rpx;
   color: #7a8f9b;
 }
 
 .footer-value {
-  font-size: 23rpx;
-  color: #214550;
-  text-align: right;
+  display: block;
+  margin-top: 8rpx;
+  font-size: 25rpx;
+  color: #173b46;
+  text-align: left;
   word-break: break-all;
+  font-weight: 600;
 }
 
 .empty-block {

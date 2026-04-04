@@ -128,7 +128,7 @@ Page({
       try {
         const body = JSON.parse(res.data)
         const vehicles = Array.isArray(body && body.data) ? body.data : []
-        const filtered = (vehicles || []).filter(item => !this.data.currentRouteId || item.routeId === this.data.currentRouteId)
+        const filtered = vehicles.filter(item => !this.data.currentRouteId || item.routeId === this.data.currentRouteId)
         this.applyVehicles(filtered, true)
       } catch (e) {
         console.log('socket parse skip', e)
@@ -191,11 +191,12 @@ Page({
   },
 
   async loadOverview(showLoading = true) {
+    const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : true
     if (!this.data.currentRouteId) {
       return
     }
 
-    if (showLoading) {
+    if (shouldShowLoading) {
       this.setData({ refreshing: true })
     }
 
@@ -205,7 +206,7 @@ Page({
     } catch (e) {
       wx.showToast({ title: '刷新失败', icon: 'none' })
     } finally {
-      if (showLoading) {
+      if (shouldShowLoading) {
         this.setData({ refreshing: false })
       }
     }
@@ -224,7 +225,7 @@ Page({
   },
 
   applyVehicles(vehicles, fromSocket) {
-    const decoratedVehicles = (vehicles || []).map(item => this.decorateVehicle(item))
+    const decoratedVehicles = vehicles.map(item => this.decorateVehicle(item))
 
     const vehicleMarkers = decoratedVehicles
       .filter(item => item.latitude !== null && item.longitude !== null)
@@ -273,6 +274,7 @@ Page({
     const longitude = this.parseCoordinate(item.longitude)
     const speed = typeof item.speed === 'number' ? item.speed : 0
     const status = item.status || 'UNKNOWN'
+    const updateTimeText = this.formatUpdateTime(item.updateTime)
     const statusTextMap = {
       RUNNING: '运行中',
       STOPPED: '已收车',
@@ -291,11 +293,13 @@ Page({
       status,
       statusText: statusTextMap[status] || '待更新',
       statusClass: statusClassMap[status] || 'vehicle-status-idle',
+      latitudeText: this.formatCoordinateText(latitude),
+      longitudeText: this.formatCoordinateText(longitude),
       coordinateText: latitude !== null && longitude !== null
         ? `${latitude.toFixed(6)} / ${longitude.toFixed(6)}`
         : '等待定位',
       speedText: `${Number(speed || 0).toFixed(1)} m/s`,
-      updateTimeText: this.formatUpdateTime(item.updateTime)
+      updateTimeText
     }
   },
 
@@ -305,6 +309,10 @@ Page({
     }
     const num = Number(value)
     return Number.isFinite(num) ? num : null
+  },
+
+  formatCoordinateText(value) {
+    return value !== null ? value.toFixed(6) : '--'
   },
 
   updateLastUpdate(mode) {
@@ -335,6 +343,40 @@ Page({
       return value.replace('T', ' ').slice(0, 19)
     }
 
+    if (typeof value === 'number') {
+      return this.formatDateTime(new Date(value))
+    }
+
+    if (typeof value === 'object') {
+      const year = value.year
+      const month = value.monthValue || value.month
+      const day = value.dayOfMonth || value.day
+      const hour = value.hour
+      const minute = value.minute
+      const second = value.second
+
+      if (
+        year !== undefined
+        && month !== undefined
+        && day !== undefined
+        && hour !== undefined
+        && minute !== undefined
+        && second !== undefined
+      ) {
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`
+      }
+    }
+
     return '--'
+  },
+
+  formatDateTime(date) {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hh = String(date.getHours()).padStart(2, '0')
+    const mm = String(date.getMinutes()).padStart(2, '0')
+    const ss = String(date.getSeconds()).padStart(2, '0')
+    return `${year}-${month}-${day} ${hh}:${mm}:${ss}`
   }
 })

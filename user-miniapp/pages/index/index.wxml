@@ -73,7 +73,7 @@
       <view class="panel-head compact-head">
         <view>
           <view class="panel-title">在线车辆</view>
-          <view class="panel-subtitle">实时展示司机、状态、速度与当前位置</view>
+          <view class="panel-subtitle">实时展示司机、状态、速度、经纬度与更新时间</view>
         </view>
       </view>
 
@@ -109,12 +109,16 @@
 
             <view class="vehicle-footer">
               <view class="footer-row">
-                <text class="footer-label">经纬度</text>
-                <text class="footer-value">{{item.coordinateText}}</text>
+                <view class="footer-label">纬度</view>
+                <view class="footer-value">{{item.latitudeText}}</view>
               </view>
               <view class="footer-row">
-                <text class="footer-label">更新时间</text>
-                <text class="footer-value">{{item.updateTimeText}}</text>
+                <view class="footer-label">经度</view>
+                <view class="footer-value">{{item.longitudeText}}</view>
+              </view>
+              <view class="footer-row">
+                <view class="footer-label">更新时间</view>
+                <view class="footer-value">{{item.updateTimeText}}</view>
               </view>
             </view>
           </view>

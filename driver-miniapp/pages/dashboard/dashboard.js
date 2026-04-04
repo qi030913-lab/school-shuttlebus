@@ -54,8 +54,6 @@ Page({
   },
 
   onHide() {
-    this.stopAutoUploadInternal(false)
-    this.stopLocationTracking()
   },
 
   onUnload() {
@@ -139,6 +137,19 @@ Page({
       wx.stopLocationUpdate({
         success: resolve,
         fail: () => resolve()
+      })
+    })
+  },
+
+  startLocationUpdateBackground() {
+    return new Promise((resolve, reject) => {
+      if (!wx.startLocationUpdateBackground) {
+        reject(new Error('background-api-unavailable'))
+        return
+      }
+      wx.startLocationUpdateBackground({
+        success: resolve,
+        fail: reject
       })
     })
   },
@@ -245,7 +256,11 @@ Page({
       }
       this.locationChangeHandler = handler
       wx.onLocationChange(handler)
-      await this.startLocationUpdate()
+      try {
+        await this.startLocationUpdateBackground()
+      } catch (backgroundErr) {
+        await this.startLocationUpdate()
+      }
       this.locationTrackingStarted = true
       return true
     } catch (e) {
