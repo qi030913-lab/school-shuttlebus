@@ -21,8 +21,7 @@ Page({
     socketStatusClass: 'status-connecting',
     lastUpdateMode: '等待数据',
     lastUpdateText: '--:--:--',
-    liveVehicleCount: 0,
-    stoppedVehicleCount: 0
+    liveVehicleCount: 0
   },
 
   async onLoad() {
@@ -242,15 +241,13 @@ Page({
 
   applyVehicles(vehicles, fromSocket) {
     const decoratedVehicles = vehicles.map(item => this.decorateVehicle(item))
-
     const vehicleMarkers = this.buildVehicleMarkers(decoratedVehicles)
 
     const nextState = {
       vehicles: decoratedVehicles,
       markers: vehicleMarkers,
       polyline: [],
-      liveVehicleCount: decoratedVehicles.length,
-      stoppedVehicleCount: decoratedVehicles.filter(item => item.status === 'STOPPED').length
+      liveVehicleCount: decoratedVehicles.length
     }
 
     if (this.shouldResetMapCenter) {

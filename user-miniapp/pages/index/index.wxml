@@ -18,10 +18,23 @@
           <view class="stat-value hero-stat-value">{{liveVehicleCount}}</view>
           <view class="stat-hint hero-stat-hint">当前线路可见车辆</view>
         </view>
-        <view class="stat-card hero-stat-card hero-stat-card-warm" bindtap="goToVehiclesPage">
-          <view class="stat-label hero-stat-label">已收车</view>
-          <view class="stat-value hero-stat-value">{{stoppedVehicleCount}}</view>
-          <view class="stat-hint hero-stat-hint">当前线路已结束运行的车辆</view>
+        <view class="stat-card hero-stat-card hero-info-card">
+          <view class="stat-label hero-stat-label">实时车速</view>
+          <block wx:if="{{vehicles.length}}">
+            <view class="hero-speed-list">
+              <view wx:for="{{vehicles}}" wx:key="vehicleId" class="hero-speed-row">
+                <view class="hero-speed-main">
+                  <view class="hero-speed-vehicle">{{item.vehicleId}}</view>
+                  <view class="hero-speed-driver">{{item.driverName || '未登记司机'}}</view>
+                </view>
+                <view class="hero-speed-value">{{item.speedText}}</view>
+              </view>
+            </view>
+            <view class="stat-hint hero-stat-hint hero-speed-footnote">最近更新时间 {{lastUpdateText}}</view>
+          </block>
+          <block wx:else>
+            <view class="hero-speed-empty">当前线路暂无在线车辆</view>
+          </block>
         </view>
       </view>
     </view>
