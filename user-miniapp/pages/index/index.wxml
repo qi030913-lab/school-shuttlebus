@@ -42,7 +42,6 @@
       <view class="panel-head">
         <view>
           <view class="panel-title">线路地图</view>
-          <view class="panel-subtitle">校园招手即停，地图仅展示车辆实时位置，不展示固定站点</view>
         </view>
         <button class="refresh-btn" size="mini" loading="{{refreshing}}" bindtap="loadOverview">刷新</button>
       </view>
