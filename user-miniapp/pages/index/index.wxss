@@ -191,10 +191,6 @@
   font-family: "DIN Alternate", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-.hero-speed-footnote {
-  margin-top: 12rpx;
-}
-
 .hero-speed-empty {
   margin-top: 16rpx;
   padding: 26rpx 18rpx;

@@ -30,7 +30,6 @@
                 <view class="hero-speed-value">{{item.speedText}}</view>
               </view>
             </view>
-            <view class="stat-hint hero-stat-hint hero-speed-footnote">最近更新时间 {{lastUpdateText}}</view>
           </block>
           <block wx:else>
             <view class="hero-speed-empty">当前线路暂无在线车辆</view>
