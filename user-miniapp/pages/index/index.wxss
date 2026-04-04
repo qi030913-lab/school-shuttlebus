@@ -38,113 +38,40 @@
 }
 
 .hero-card {
-  padding: 32rpx;
+  padding: 24rpx;
   border-radius: 32rpx;
   background: linear-gradient(145deg, rgba(8, 55, 68, 0.96), rgba(18, 103, 95, 0.92));
   color: #ffffff;
   box-shadow: 0 24rpx 48rpx rgba(12, 56, 66, 0.18);
 }
 
-.hero-badge {
-  display: inline-flex;
-  padding: 10rpx 18rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.14);
-  font-size: 22rpx;
-  letter-spacing: 2rpx;
-  color: rgba(255, 255, 255, 0.86);
+.route-showcase {
+  padding: 28rpx 30rpx;
+  border-radius: 28rpx;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.08));
+  border: 1rpx solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(12rpx);
 }
 
-.hero-title {
-  margin-top: 18rpx;
+.route-showcase-label {
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.route-showcase-name {
+  margin-top: 16rpx;
   font-size: 44rpx;
   line-height: 1.2;
   font-weight: 700;
   font-family: "DIN Alternate", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-.hero-subtitle {
+.route-showcase-time {
   margin-top: 14rpx;
   font-size: 24rpx;
-  line-height: 1.7;
-  color: rgba(255, 255, 255, 0.76);
-}
-
-.route-selector {
-  margin-top: 28rpx;
-}
-
-.field-label {
-  font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.72);
-  margin-bottom: 14rpx;
-}
-
-.route-picker {
-  padding: 22rpx 24rpx;
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1rpx solid rgba(255, 255, 255, 0.18);
-}
-
-.route-picker-main {
-  font-size: 30rpx;
-  font-weight: 600;
-}
-
-.route-picker-sub {
-  margin-top: 8rpx;
-  font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.hero-meta {
-  margin-top: 28rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-
-.socket-pill {
-  padding: 12rpx 20rpx;
-  border-radius: 999rpx;
-  font-size: 24rpx;
-  font-weight: 600;
-}
-
-.status-connected {
-  background: rgba(107, 247, 206, 0.18);
-  color: #b3fff0;
-}
-
-.status-connecting,
-.status-reconnecting {
-  background: rgba(255, 201, 92, 0.16);
-  color: #ffe6a4;
-}
-
-.status-disconnected {
-  background: rgba(255, 255, 255, 0.14);
+  line-height: 1.6;
   color: rgba(255, 255, 255, 0.78);
-}
-
-.update-meta {
-  text-align: right;
-}
-
-.update-label {
-  display: block;
-  font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.68);
-}
-
-.update-time {
-  display: block;
-  margin-top: 6rpx;
-  font-size: 28rpx;
-  font-weight: 600;
-  font-family: "DIN Alternate", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .stats-grid {
@@ -152,6 +79,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18rpx;
   margin-top: 22rpx;
+}
+
+.hero-stats-grid {
+  margin-top: 18rpx;
 }
 
 .stat-card {
@@ -162,6 +93,12 @@
   box-shadow: 0 12rpx 28rpx rgba(21, 52, 74, 0.06);
 }
 
+.hero-stat-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
+  border: 1rpx solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+}
+
 .accent-card {
   background: linear-gradient(145deg, #ecfaf8, #f7fffe);
 }
@@ -170,9 +107,17 @@
   background: linear-gradient(145deg, #fff7eb, #fffcf4);
 }
 
+.hero-stat-card-warm {
+  background: linear-gradient(180deg, rgba(255, 222, 173, 0.2), rgba(255, 255, 255, 0.08));
+}
+
 .stat-label {
   font-size: 24rpx;
   color: #5f7480;
+}
+
+.hero-stat-label {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .stat-value {
@@ -184,11 +129,19 @@
   font-family: "DIN Alternate", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
+.hero-stat-value {
+  color: #ffffff;
+}
+
 .stat-hint {
   margin-top: 10rpx;
   font-size: 22rpx;
   color: #79909d;
   line-height: 1.6;
+}
+
+.hero-stat-hint {
+  color: rgba(255, 255, 255, 0.66);
 }
 
 .panel-card {

@@ -22,8 +22,6 @@ Page({
     lastUpdateMode: '等待数据',
     lastUpdateText: '--:--:--',
     liveVehicleCount: 0,
-    movingVehicleCount: 0,
-    locatedVehicleCount: 0,
     stoppedVehicleCount: 0
   },
 
@@ -253,8 +251,6 @@ Page({
       markers: vehicleMarkers,
       polyline: [],
       liveVehicleCount: decoratedVehicles.length,
-      movingVehicleCount: decoratedVehicles.filter(item => item.status === 'RUNNING').length,
-      locatedVehicleCount: decoratedVehicles.filter(item => item.latitude !== null && item.longitude !== null).length,
       stoppedVehicleCount: decoratedVehicles.filter(item => item.status === 'STOPPED').length
     }
 

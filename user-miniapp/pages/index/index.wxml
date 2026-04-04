@@ -4,49 +4,25 @@
 
   <view class="page-content">
     <view class="hero-card">
-      <view class="hero-badge">实时摆渡车看板</view>
-      <view class="hero-title">{{routeName || '摆渡线路总览'}}</view>
-      <view class="hero-subtitle">{{routeServiceTime ? '服务时段 ' + routeServiceTime : '选择线路后即可查看车辆实时位置与地图更新'}}</view>
-
-      <view class="route-selector">
-        <view class="field-label">当前线路</view>
-        <picker mode="selector" range="{{routes}}" range-key="routeName" value="{{routeIndex}}" bindchange="onRouteChange">
-          <view class="route-picker">
-            <view class="route-picker-main">{{routes.length ? routes[routeIndex].routeName : '加载中...'}}</view>
-            <view class="route-picker-sub">{{routes.length ? routes[routeIndex].serviceTime : '正在加载线路信息'}}</view>
-          </view>
-        </picker>
-      </view>
-
-      <view class="hero-meta">
-        <view class="socket-pill {{socketStatusClass}}">{{socketStatusText}}</view>
-        <view class="update-meta">
-          <text class="update-label">{{lastUpdateMode}}</text>
-          <text class="update-time">{{lastUpdateText}}</text>
+      <picker mode="selector" range="{{routes}}" range-key="routeName" value="{{routeIndex}}" bindchange="onRouteChange">
+        <view class="route-showcase">
+          <view class="route-showcase-label">当前线路</view>
+          <view class="route-showcase-name">{{routeName || '摆渡线路总览'}}</view>
+          <view class="route-showcase-time">服务时段 {{routeServiceTime || '加载中...'}}</view>
         </view>
-      </view>
-    </view>
+      </picker>
 
-    <view class="stats-grid">
-      <view class="stat-card">
-        <view class="stat-label">在线车辆</view>
-        <view class="stat-value">{{liveVehicleCount}}</view>
-        <view class="stat-hint">当前线路可见车辆</view>
-      </view>
-      <view class="stat-card accent-card">
-        <view class="stat-label">运行中</view>
-        <view class="stat-value">{{movingVehicleCount}}</view>
-        <view class="stat-hint">正在发车中的车辆</view>
-      </view>
-      <view class="stat-card">
-        <view class="stat-label">已定位</view>
-        <view class="stat-value">{{locatedVehicleCount}}</view>
-        <view class="stat-hint">已拿到经纬度的车辆</view>
-      </view>
-      <view class="stat-card warm-card">
-        <view class="stat-label">已收车</view>
-        <view class="stat-value">{{stoppedVehicleCount}}</view>
-        <view class="stat-hint">当前线路已结束运行的车辆</view>
+      <view class="stats-grid hero-stats-grid">
+        <view class="stat-card hero-stat-card">
+          <view class="stat-label hero-stat-label">在线车辆</view>
+          <view class="stat-value hero-stat-value">{{liveVehicleCount}}</view>
+          <view class="stat-hint hero-stat-hint">当前线路可见车辆</view>
+        </view>
+        <view class="stat-card hero-stat-card hero-stat-card-warm">
+          <view class="stat-label hero-stat-label">已收车</view>
+          <view class="stat-value hero-stat-value">{{stoppedVehicleCount}}</view>
+          <view class="stat-hint hero-stat-hint">当前线路已结束运行的车辆</view>
+        </view>
       </view>
     </view>
 
