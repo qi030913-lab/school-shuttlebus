@@ -1,0 +1,42 @@
+<view class="container">
+  <view class="card">
+    <view class="title">线路选择</view>
+    <picker mode="selector" range="{{routes}}" range-key="routeName" value="{{routeIndex}}" bindchange="onRouteChange">
+      <view class="input">{{routes.length ? routes[routeIndex].routeName + '（' + routes[routeIndex].serviceTime + '）' : '加载中...'}}</view>
+    </picker>
+  </view>
+
+  <view class="card">
+    <view class="title">站点列表</view>
+    <block wx:if="{{stations.length}}">
+      <view class="station-list">
+        <view wx:for="{{stations}}" wx:key="stationId" class="station-tag">{{item.sequenceNo}}. {{item.stationName}}</view>
+      </view>
+    </block>
+    <block wx:else>
+      <view class="small">暂无站点数据</view>
+    </block>
+  </view>
+
+  <view class="card">
+    <view class="title">在线摆渡车</view>
+    <button size="mini" type="primary" bindtap="loadOverview">手动刷新</button>
+    <block wx:if="{{vehicles.length}}">
+      <view wx:for="{{vehicles}}" wx:key="vehicleId" class="item">
+        <view class="vehicle-name">{{item.vehicleId}} - {{item.driverName || '未登记司机'}}</view>
+        <view class="small">线路：{{item.routeName || '--'}}</view>
+        <view class="small">状态：{{item.status || '未知'}}</view>
+        <view class="small">最近站点：{{item.nearestStationName || '--'}}，预计 {{item.etaMinutes || '--'}} 分钟</view>
+        <view class="small">更新时间：{{item.updateTime || '--'}}</view>
+      </view>
+    </block>
+    <block wx:else>
+      <view class="small">当前线路暂无车辆数据</view>
+    </block>
+  </view>
+
+  <view class="card">
+    <view class="title">地图预览</view>
+    <map longitude="{{mapLongitude}}" latitude="{{mapLatitude}}" scale="16" markers="{{markers}}" polyline="{{polyline}}" style="width: 100%; height: 500rpx;"></map>
+  </view>
+</view>
