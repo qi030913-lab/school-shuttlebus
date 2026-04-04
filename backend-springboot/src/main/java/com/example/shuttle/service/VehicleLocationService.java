@@ -30,16 +30,10 @@ public class VehicleLocationService {
         if (current == null) {
             return null;
         }
-        upsertRuntime(
-                vehicleId,
-                current.getRouteId(),
-                current.getDriverName(),
-                current.getLatitude(),
-                current.getLongitude(),
-                current.getSpeed(),
-                "STOPPED"
-        );
-        return getByVehicleId(vehicleId);
+        current.setStatus("STOPPED");
+        current.setUpdateTime(LocalDateTime.now());
+        deleteRuntime(vehicleId);
+        return current;
     }
 
     public VehicleLocation updateLocation(String vehicleId, String driverName, String routeId, Double latitude, Double longitude, Double speed) {
@@ -141,6 +135,10 @@ public class VehicleLocationService {
                 VALUES (?, ?, ?, ?, ?, NOW())
                 """;
         jdbcTemplate.update(sql, vehicleId, routeId, latitude, longitude, speed);
+    }
+
+    private void deleteRuntime(String vehicleId) {
+        jdbcTemplate.update("DELETE FROM vehicle_runtime WHERE vehicle_id = ?", vehicleId);
     }
 
     private void fillBasicFields(VehicleLocation vehicleLocation, String vehicleId, String driverName, String routeId) {
