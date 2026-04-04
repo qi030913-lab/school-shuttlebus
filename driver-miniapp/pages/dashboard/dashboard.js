@@ -1,5 +1,7 @@
 const { request } = require('../../utils')
 
+const UPLOAD_THROTTLE_MS = 5000
+
 Page({
   data: {
     driverName: '',
@@ -31,6 +33,14 @@ Page({
       mockMode: !!driverInfo.mockMode
     })
 
+    this.latestLocation = null
+    this.pendingUploadLocation = null
+    this.pendingUploadTimer = null
+    this.uploading = false
+    this.lastUploadAt = 0
+    this.locationTrackingStarted = false
+    this.locationChangeHandler = null
+
     try {
       const me = await request('/api/driver/me')
       this.setData({
@@ -45,14 +55,20 @@ Page({
     }
   },
 
-  onUnload() {
-    this.clearTimer()
+  onHide() {
+    this.stopAutoUploadInternal(false)
+    this.stopLocationTracking()
   },
 
-  clearTimer() {
-    if (this.timer) {
-      clearInterval(this.timer)
-      this.timer = null
+  onUnload() {
+    this.stopAutoUploadInternal(false)
+    this.stopLocationTracking()
+  },
+
+  clearPendingUploadTimer() {
+    if (this.pendingUploadTimer) {
+      clearTimeout(this.pendingUploadTimer)
+      this.pendingUploadTimer = null
     }
   },
 
@@ -103,6 +119,28 @@ Page({
         type: 'gcj02',
         success: resolve,
         fail: reject
+      })
+    })
+  },
+
+  startLocationUpdate() {
+    return new Promise((resolve, reject) => {
+      wx.startLocationUpdate({
+        success: resolve,
+        fail: reject
+      })
+    })
+  },
+
+  stopLocationUpdate() {
+    return new Promise(resolve => {
+      if (!wx.stopLocationUpdate) {
+        resolve()
+        return
+      }
+      wx.stopLocationUpdate({
+        success: resolve,
+        fail: () => resolve()
       })
     })
   },
@@ -163,10 +201,94 @@ Page({
       || text.includes('no such provider')
   },
 
-  stopAutoUpload(message) {
-    this.clearTimer()
-    this.setData({ autoUpload: false })
-    if (message) {
+  normalizeLocation(res) {
+    return {
+      latitude: res.latitude,
+      longitude: res.longitude,
+      speed: typeof res.speed === 'number' && res.speed > 0 ? res.speed : 0
+    }
+  },
+
+  updateLocationPanel(location) {
+    if (!location) {
+      return
+    }
+    this.setData({
+      latitude: Number(location.latitude).toFixed(6),
+      longitude: Number(location.longitude).toFixed(6),
+      speed: Number(location.speed || 0).toFixed(2)
+    })
+  },
+
+  async startLocationTracking() {
+    if (this.locationTrackingStarted) {
+      return true
+    }
+
+    const hasPermission = await this.ensureLocationPermission()
+    if (!hasPermission) {
+      wx.showToast({ title: '未开启定位权限', icon: 'none' })
+      return false
+    }
+
+    const handler = (res) => {
+      const location = this.normalizeLocation(res)
+      this.latestLocation = location
+      this.updateLocationPanel(location)
+
+      if (this.data.autoUpload) {
+        this.enqueueUpload(location, false, true)
+      }
+    }
+
+    try {
+      if (this.locationChangeHandler && wx.offLocationChange) {
+        wx.offLocationChange(this.locationChangeHandler)
+      }
+      this.locationChangeHandler = handler
+      wx.onLocationChange(handler)
+      await this.startLocationUpdate()
+      this.locationTrackingStarted = true
+      return true
+    } catch (e) {
+      const errMsg = e && e.errMsg ? e.errMsg : ''
+      if (this.isLocationServiceError(errMsg)) {
+        wx.showToast({ title: '请打开手机定位服务', icon: 'none' })
+      } else {
+        wx.showToast({ title: '开启持续定位失败', icon: 'none' })
+      }
+      if (this.locationChangeHandler && wx.offLocationChange) {
+        wx.offLocationChange(this.locationChangeHandler)
+      }
+      this.locationChangeHandler = null
+      this.locationTrackingStarted = false
+      return false
+    }
+  },
+
+  stopLocationTracking() {
+    this.clearPendingUploadTimer()
+    this.pendingUploadLocation = null
+
+    if (this.locationChangeHandler && wx.offLocationChange) {
+      try {
+        wx.offLocationChange(this.locationChangeHandler)
+      } catch (e) {
+      }
+    }
+
+    this.locationChangeHandler = null
+    this.locationTrackingStarted = false
+    this.stopLocationUpdate()
+  },
+
+  stopAutoUploadInternal(showToast, message = '') {
+    this.clearPendingUploadTimer()
+    this.pendingUploadLocation = null
+    if (this.data.autoUpload) {
+      this.setData({ autoUpload: false })
+    }
+    if (showToast && message) {
       wx.showToast({ title: message, icon: 'none' })
     }
   },
@@ -184,58 +306,118 @@ Page({
   async stopTrip() {
     try {
       await request('/api/driver/stop', 'POST', {})
-      this.setData({ tripStatus: '已结束', autoUpload: false })
-      this.clearTimer()
+      this.stopAutoUploadInternal(false)
+      this.stopLocationTracking()
+      this.setData({ tripStatus: '已结束' })
       wx.showToast({ title: '已结束', icon: 'success' })
     } catch (e) {
       wx.showToast({ title: e.message || e.msg || '结束失败', icon: 'none' })
     }
   },
 
-  uploadOnce() {
-    this.doUploadLocation(false)
+  async uploadOnce() {
+    const hasPermission = await this.ensureLocationPermission()
+    if (!hasPermission) {
+      wx.showToast({ title: '未开启定位权限', icon: 'none' })
+      return
+    }
+
+    try {
+      const location = this.normalizeLocation(await this.getLocation())
+      this.latestLocation = location
+      this.updateLocationPanel(location)
+      await this.uploadLocation(location, false)
+    } catch (e) {
+      const errMsg = e && e.errMsg ? e.errMsg : ''
+      if (this.isLocationServiceError(errMsg)) {
+        wx.showToast({ title: '请打开手机定位服务', icon: 'none' })
+        return
+      }
+      wx.showToast({ title: '定位失败，请重试', icon: 'none' })
+    }
   },
 
   async toggleAutoUpload() {
     if (this.data.autoUpload) {
-      this.stopAutoUpload()
+      this.stopAutoUploadInternal(false)
+      this.stopLocationTracking()
       return
     }
 
-    const firstUploadSuccess = await this.doUploadLocation(false)
-    if (!firstUploadSuccess) {
+    const trackingReady = await this.startLocationTracking()
+    if (!trackingReady) {
       return
     }
 
     this.setData({ autoUpload: true })
-    this.clearTimer()
-    this.timer = setInterval(() => {
-      this.doUploadLocation(true)
-    }, 5000)
-  },
 
-  async doUploadLocation(silent) {
-    const hasPermission = await this.ensureLocationPermission()
-    if (!hasPermission) {
-      if (this.data.autoUpload || silent) {
-        this.stopAutoUpload('未开启定位权限')
+    if (this.latestLocation) {
+      const success = await this.enqueueUpload(this.latestLocation, true, false)
+      if (!success) {
+        this.stopLocationTracking()
       }
-      return false
+      return
     }
 
     try {
-      const res = await this.getLocation()
-      const payload = {
-        latitude: res.latitude,
-        longitude: res.longitude,
-        speed: res.speed || 0
+      const location = this.normalizeLocation(await this.getLocation())
+      this.latestLocation = location
+      this.updateLocationPanel(location)
+      const success = await this.enqueueUpload(location, true, false)
+      if (!success) {
+        this.stopLocationTracking()
       }
-      const result = await request('/api/driver/location', 'POST', payload)
+    } catch (e) {
+      this.stopAutoUploadInternal(true, '首次定位失败')
+      this.stopLocationTracking()
+    }
+  },
 
+  enqueueUpload(location, force, silent) {
+    if (!location) {
+      return Promise.resolve(false)
+    }
+
+    this.latestLocation = location
+
+    if (this.uploading) {
+      this.pendingUploadLocation = location
+      return Promise.resolve(true)
+    }
+
+    const elapsed = Date.now() - this.lastUploadAt
+    if (!force && elapsed < UPLOAD_THROTTLE_MS) {
+      this.pendingUploadLocation = location
+      const waitMs = UPLOAD_THROTTLE_MS - elapsed
+      if (!this.pendingUploadTimer) {
+        this.pendingUploadTimer = setTimeout(() => {
+          this.pendingUploadTimer = null
+          const nextLocation = this.pendingUploadLocation
+          this.pendingUploadLocation = null
+          if (this.data.autoUpload && nextLocation) {
+            this.enqueueUpload(nextLocation, true, true)
+          }
+        }, waitMs)
+      }
+      return Promise.resolve(true)
+    }
+
+    return this.uploadLocation(location, silent)
+  },
+
+  async uploadLocation(location, silent) {
+    this.uploading = true
+    this.lastUploadAt = Date.now()
+
+    try {
+      const result = await request('/api/driver/location', 'POST', {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        speed: location.speed || 0
+      })
+
+      this.updateLocationPanel(location)
       this.setData({
-        latitude: Number(res.latitude).toFixed(6),
-        longitude: Number(res.longitude).toFixed(6),
-        speed: Number(res.speed || 0).toFixed(2),
         nearestStationName: result.nearestStationName || '--',
         etaMinutes: result.etaMinutes !== null && result.etaMinutes !== undefined ? result.etaMinutes : '--',
         tripStatus: result.status === 'RUNNING' ? '运行中' : '已结束'
@@ -246,42 +428,33 @@ Page({
       }
       return true
     } catch (e) {
-      const errMsg = e && e.errMsg ? e.errMsg : ''
-
-      if (this.isPermissionError(errMsg)) {
-        const opened = await this.openLocationSetting()
-        if (opened) {
-          return this.doUploadLocation(silent)
-        }
-        if (this.data.autoUpload || silent) {
-          this.stopAutoUpload('未开启定位权限')
-        } else {
-          wx.showToast({ title: '未开启定位权限', icon: 'none' })
-        }
-        return false
-      }
-
-      if (this.isLocationServiceError(errMsg)) {
-        if (this.data.autoUpload || silent) {
-          this.stopAutoUpload('请打开手机定位服务')
-        } else {
-          wx.showToast({ title: '请打开手机定位服务', icon: 'none' })
-        }
-        return false
-      }
-
-      const msg = e && e.message ? e.message : (e && e.msg ? e.msg : '定位失败，请重试')
-      if (this.data.autoUpload || silent) {
-        this.stopAutoUpload(msg)
+      const msg = e && e.message ? e.message : (e && e.msg ? e.msg : '位置上报失败')
+      if (this.data.autoUpload) {
+        this.stopAutoUploadInternal(true, msg)
       } else {
         wx.showToast({ title: msg, icon: 'none' })
       }
       return false
+    } finally {
+      this.uploading = false
+
+      if (this.data.autoUpload && this.pendingUploadLocation && !this.pendingUploadTimer) {
+        const nextLocation = this.pendingUploadLocation
+        this.pendingUploadLocation = null
+        const waitMs = Math.max(0, UPLOAD_THROTTLE_MS - (Date.now() - this.lastUploadAt))
+        this.pendingUploadTimer = setTimeout(() => {
+          this.pendingUploadTimer = null
+          if (this.data.autoUpload && nextLocation) {
+            this.enqueueUpload(nextLocation, true, true)
+          }
+        }, waitMs)
+      }
     }
   },
 
   logout() {
-    this.clearTimer()
+    this.stopAutoUploadInternal(false)
+    this.stopLocationTracking()
     wx.removeStorageSync('driverInfo')
     wx.redirectTo({ url: '/pages/login/login' })
   }
