@@ -99,6 +99,11 @@
   box-shadow: none;
 }
 
+.hero-stat-card:active {
+  transform: scale(0.98);
+  opacity: 0.96;
+}
+
 .accent-card {
   background: linear-gradient(145deg, #ecfaf8, #f7fffe);
 }
@@ -204,125 +209,4 @@
   height: 560rpx;
   border-radius: 24rpx;
   overflow: hidden;
-}
-
-.vehicle-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-}
-
-.vehicle-card {
-  padding: 22rpx;
-  border-radius: 24rpx;
-  background: linear-gradient(180deg, #fbfcfd, #f5f9fb);
-  border: 1rpx solid #e0ebf0;
-}
-
-.vehicle-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16rpx;
-}
-
-.vehicle-id {
-  font-size: 30rpx;
-  font-weight: 700;
-  color: #123844;
-}
-
-.vehicle-driver {
-  margin-top: 8rpx;
-  font-size: 24rpx;
-  color: #6e8691;
-}
-
-.vehicle-status {
-  padding: 10rpx 18rpx;
-  border-radius: 999rpx;
-  font-size: 22rpx;
-  font-weight: 600;
-}
-
-.vehicle-status-running {
-  background: #e8fbf5;
-  color: #0d8b60;
-}
-
-.vehicle-status-stopped {
-  background: #eef3f7;
-  color: #6f8290;
-}
-
-.vehicle-status-idle {
-  background: #fff5e7;
-  color: #b46d1c;
-}
-
-.vehicle-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14rpx;
-  margin-top: 20rpx;
-}
-
-.metric-box {
-  padding: 16rpx;
-  border-radius: 18rpx;
-  background: #ffffff;
-}
-
-.metric-label {
-  font-size: 22rpx;
-  color: #7a8f9b;
-}
-
-.metric-value {
-  margin-top: 10rpx;
-  font-size: 26rpx;
-  color: #163c47;
-  font-weight: 600;
-}
-
-.vehicle-footer {
-  margin-top: 20rpx;
-  padding: 18rpx 16rpx 16rpx;
-  border-radius: 18rpx;
-  background: rgba(255, 255, 255, 0.78);
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14rpx;
-}
-
-.footer-row {
-  display: block;
-  padding: 12rpx 14rpx;
-  border-radius: 14rpx;
-  background: rgba(244, 248, 250, 0.96);
-}
-
-.footer-label {
-  display: block;
-  font-size: 22rpx;
-  color: #7a8f9b;
-}
-
-.footer-value {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 25rpx;
-  color: #173b46;
-  text-align: left;
-  word-break: break-all;
-  font-weight: 600;
-}
-
-.empty-block {
-  padding: 36rpx 20rpx;
-  border-radius: 22rpx;
-  background: #f6fafc;
-  color: #718794;
-  text-align: center;
-  font-size: 24rpx;
 }

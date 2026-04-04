@@ -6,33 +6,40 @@ const SOCKET_RETRY_MAX_MS = 15000
 
 Page({
   data: {
-    routes: [],
-    routeIndex: 0,
-    currentRouteId: '',
+    routeId: '',
     routeName: '',
-    routeServiceTime: '',
+    serviceTime: '',
     vehicles: [],
-    mapLatitude: 39.909,
-    mapLongitude: 116.397,
-    markers: [],
-    polyline: [],
     refreshing: false,
     socketStatusText: '实时连接中',
     socketStatusClass: 'status-connecting',
-    lastUpdateMode: '等待数据',
-    lastUpdateText: '--:--:--',
     liveVehicleCount: 0,
-    stoppedVehicleCount: 0
+    stoppedVehicleCount: 0,
+    lastUpdateText: '--:--:--'
   },
 
-  async onLoad() {
+  async onLoad(options) {
     this.socketTask = null
     this.socketReconnectTimer = null
     this.socketClosedByUser = false
     this.socketRetryCount = 0
-    this.shouldResetMapCenter = true
 
-    await this.loadRoutes()
+    const routeId = decodeURIComponent(options.routeId || '')
+    const routeName = decodeURIComponent(options.routeName || '')
+    const serviceTime = decodeURIComponent(options.serviceTime || '')
+
+    this.setData({
+      routeId,
+      routeName,
+      serviceTime
+    })
+
+    if (!routeId) {
+      wx.showToast({ title: '缺少线路信息', icon: 'none' })
+      return
+    }
+
+    await this.loadOverview(false)
     this.connectSocket()
     this.pollTimer = setInterval(() => {
       this.loadOverview(false)
@@ -126,10 +133,10 @@ Page({
       try {
         const body = JSON.parse(res.data)
         const vehicles = Array.isArray(body && body.data) ? body.data : []
-        const filtered = vehicles.filter(item => !this.data.currentRouteId || item.routeId === this.data.currentRouteId)
+        const filtered = vehicles.filter(item => !this.data.routeId || item.routeId === this.data.routeId)
         this.applyVehicles(filtered, true)
       } catch (e) {
-        console.log('socket parse skip', e)
+        console.log('vehicle socket parse skip', e)
       }
     })
 
@@ -153,62 +160,9 @@ Page({
     })
   },
 
-  async loadRoutes() {
-    try {
-      const routes = await request('/api/common/routes')
-      const first = routes[0] || {}
-      this.shouldResetMapCenter = true
-      this.setData({
-        routes,
-        routeIndex: 0,
-        currentRouteId: first.routeId || '',
-        routeName: first.routeName || '',
-        routeServiceTime: first.serviceTime || ''
-      })
-      if (first.routeId) {
-        await this.loadOverview(false)
-      }
-    } catch (e) {
-      wx.showToast({ title: '加载线路失败', icon: 'none' })
-    }
-  },
-
-  onRouteChange(e) {
-    const routeIndex = Number(e.detail.value)
-    const route = this.data.routes[routeIndex] || {}
-
-    this.shouldResetMapCenter = true
-    this.setData({
-      routeIndex,
-      currentRouteId: route.routeId || '',
-      routeName: route.routeName || '',
-      routeServiceTime: route.serviceTime || ''
-    })
-
-    this.loadOverview(true)
-  },
-
-  goToVehiclesPage() {
-    const {
-      currentRouteId,
-      routeName,
-      routeServiceTime
-    } = this.data
-
-    const query = [
-      `routeId=${encodeURIComponent(currentRouteId || '')}`,
-      `routeName=${encodeURIComponent(routeName || '')}`,
-      `serviceTime=${encodeURIComponent(routeServiceTime || '')}`
-    ].join('&')
-
-    wx.navigateTo({
-      url: `/pages/vehicles/index?${query}`
-    })
-  },
-
   async loadOverview(showLoading = true) {
     const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : true
-    if (!this.data.currentRouteId) {
+    if (!this.data.routeId) {
       return
     }
 
@@ -217,8 +171,13 @@ Page({
     }
 
     try {
-      const overview = await request(`/api/user/overview?routeId=${this.data.currentRouteId}`)
-      this.applyOverview(overview)
+      const overview = await request(`/api/user/overview?routeId=${this.data.routeId}`)
+      const route = overview.route || {}
+      this.setData({
+        routeName: route.routeName || this.data.routeName,
+        serviceTime: route.serviceTime || this.data.serviceTime
+      })
+      this.applyVehicles(Array.isArray(overview.vehicles) ? overview.vehicles : [], false)
     } catch (e) {
       wx.showToast({ title: '刷新失败', icon: 'none' })
     } finally {
@@ -228,59 +187,14 @@ Page({
     }
   },
 
-  applyOverview(overview) {
-    const vehicles = Array.isArray(overview.vehicles) ? overview.vehicles : []
-    const route = overview.route || {}
-
-    this.setData({
-      routeName: route.routeName || this.data.routeName,
-      routeServiceTime: route.serviceTime || this.data.routeServiceTime
-    })
-
-    this.applyVehicles(vehicles, false)
-  },
-
   applyVehicles(vehicles, fromSocket) {
     const decoratedVehicles = vehicles.map(item => this.decorateVehicle(item))
-
-    const vehicleMarkers = decoratedVehicles
-      .filter(item => item.latitude !== null && item.longitude !== null)
-      .map((item, index) => ({
-        id: index + 1,
-        latitude: item.latitude,
-        longitude: item.longitude,
-        width: 30,
-        height: 30,
-        callout: {
-          content: item.vehicleId,
-          display: 'ALWAYS',
-          fontSize: 12,
-          padding: 6,
-          borderRadius: 16,
-          color: '#ffffff',
-          bgColor: item.status === 'RUNNING' ? '#0f766e' : '#9aa8b4',
-          borderColor: item.status === 'RUNNING' ? '#0f766e' : '#9aa8b4',
-          borderWidth: 1
-        }
-      }))
-
-    const nextState = {
+    this.setData({
       vehicles: decoratedVehicles,
-      markers: vehicleMarkers,
-      polyline: [],
       liveVehicleCount: decoratedVehicles.length,
-      stoppedVehicleCount: decoratedVehicles.filter(item => item.status === 'STOPPED').length
-    }
-
-    if (this.shouldResetMapCenter) {
-      const firstMarker = vehicleMarkers[0]
-      nextState.mapLatitude = firstMarker ? firstMarker.latitude : 39.909
-      nextState.mapLongitude = firstMarker ? firstMarker.longitude : 116.397
-      this.shouldResetMapCenter = false
-    }
-
-    this.setData(nextState)
-    this.updateLastUpdate(fromSocket ? '实时推送' : '接口刷新')
+      stoppedVehicleCount: decoratedVehicles.filter(item => item.status === 'STOPPED').length,
+      lastUpdateText: this.formatClock(new Date())
+    })
   },
 
   decorateVehicle(item) {
@@ -288,7 +202,6 @@ Page({
     const longitude = this.parseCoordinate(item.longitude)
     const speed = typeof item.speed === 'number' ? item.speed : 0
     const status = item.status || 'UNKNOWN'
-    const updateTimeText = this.formatUpdateTime(item.updateTime)
     const statusTextMap = {
       RUNNING: '运行中',
       STOPPED: '已收车',
@@ -302,18 +215,14 @@ Page({
 
     return {
       ...item,
-      latitude,
-      longitude,
       status,
       statusText: statusTextMap[status] || '待更新',
       statusClass: statusClassMap[status] || 'vehicle-status-idle',
       latitudeText: this.formatCoordinateText(latitude),
       longitudeText: this.formatCoordinateText(longitude),
-      coordinateText: latitude !== null && longitude !== null
-        ? `${latitude.toFixed(6)} / ${longitude.toFixed(6)}`
-        : '等待定位',
+      coordinateStateText: latitude !== null && longitude !== null ? '已定位' : '未定位',
       speedText: `${Number(speed || 0).toFixed(1)} m/s`,
-      updateTimeText
+      updateTimeText: this.formatUpdateTime(item.updateTime)
     }
   },
 
@@ -327,13 +236,6 @@ Page({
 
   formatCoordinateText(value) {
     return value !== null ? value.toFixed(6) : '--'
-  },
-
-  updateLastUpdate(mode) {
-    this.setData({
-      lastUpdateMode: mode,
-      lastUpdateText: this.formatClock(new Date())
-    })
   },
 
   formatClock(date) {

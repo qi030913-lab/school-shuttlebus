@@ -1,6 +1,7 @@
 {
   "pages": [
-    "pages/index/index"
+    "pages/index/index",
+    "pages/vehicles/index"
   ],
   "window": {
     "navigationBarTitleText": "摆渡车用户端Demo",
