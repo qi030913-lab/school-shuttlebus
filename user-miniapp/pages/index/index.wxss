@@ -79,12 +79,6 @@
   justify-content: center;
 }
 
-.route-showcase-icon {
-  width: 86rpx;
-  height: 86rpx;
-  filter: brightness(0) invert(1);
-}
-
 .route-showcase-copy {
   min-width: 0;
   flex: 1;
