@@ -424,31 +424,73 @@ Page({
   },
 
   buildVehicleMarkers(vehicles) {
-    return vehicles
+    const clusters = []
+
+    vehicles
       .filter(item => item.latitude !== null && item.longitude !== null)
-      .map((item, index) => ({
-          id: index + 1,
+      .forEach((item) => {
+        const cluster = this.findMarkerClusterByCoordinate(clusters, item.latitude, item.longitude)
+        if (cluster) {
+          cluster.items.push(item)
+          return
+        }
+
+        clusters.push({
           latitude: item.latitude,
           longitude: item.longitude,
+          items: [item]
+        })
+      })
+
+    return clusters.map((cluster, index) => {
+      const clusterStatus = this.getClusterStatus(cluster.items)
+
+      return {
+          id: index + 1,
+          latitude: cluster.latitude,
+          longitude: cluster.longitude,
           iconPath: VEHICLE_MARKER_ICON,
-          width: 34,
-          height: 34,
+          width: cluster.items.length > 1 ? 38 : 34,
+          height: cluster.items.length > 1 ? 38 : 34,
           anchor: {
             x: 0.5,
             y: 0.7
           },
           callout: {
-            content: item.vehicleId,
+            content: this.buildVehicleMarkerLabel(cluster.items),
             display: 'ALWAYS',
             fontSize: 12,
             padding: 6,
             borderRadius: 16,
             color: '#ffffff',
-            bgColor: item.status === 'RUNNING' ? '#0f766e' : '#9aa8b4',
-            borderColor: item.status === 'RUNNING' ? '#0f766e' : '#9aa8b4',
+            bgColor: clusterStatus === 'RUNNING' ? '#0f766e' : '#9aa8b4',
+            borderColor: clusterStatus === 'RUNNING' ? '#0f766e' : '#9aa8b4',
             borderWidth: 1
           }
-        }))
+        }
+    })
+  },
+
+  findMarkerClusterByCoordinate(clusters, latitude, longitude) {
+    return clusters.find(cluster => (
+      cluster.latitude === latitude && cluster.longitude === longitude
+    ))
+  },
+
+  getClusterStatus(items) {
+    return items.some(item => item.status === 'RUNNING') ? 'RUNNING' : 'STOPPED'
+  },
+
+  buildVehicleMarkerLabel(items) {
+    if (!items.length) {
+      return ''
+    }
+
+    if (items.length === 1) {
+      return items[0].vehicleId
+    }
+
+    return `${items[0].vehicleId} 等${items.length}辆`
   },
 
   calculateDistanceMeters(lat1, lng1, lat2, lng2) {
