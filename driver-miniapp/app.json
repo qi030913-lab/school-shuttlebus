@@ -14,5 +14,11 @@
     "scope.userLocation": {
       "desc": "用于上报摆渡车当前位置，给乘车学生查看车辆实时位置"
     }
-  }
+  },
+  "requiredPrivateInfos": [
+    "getLocation",
+    "onLocationChange",
+    "startLocationUpdate",
+    "startLocationUpdateBackground"
+  ]
 }

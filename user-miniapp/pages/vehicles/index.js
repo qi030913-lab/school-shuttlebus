@@ -239,8 +239,7 @@ Page({
   },
 
   decorateVehicle(item) {
-    const latitude = this.parseCoordinate(item.latitude)
-    const longitude = this.parseCoordinate(item.longitude)
+    const { latitude, longitude } = this.normalizeCoordinatePair(item.latitude, item.longitude)
     const speed = typeof item.speed === 'number' ? item.speed : 0
     const status = item.status || 'UNKNOWN'
     const statusTextMap = {
@@ -273,6 +272,42 @@ Page({
     }
     const num = Number(value)
     return Number.isFinite(num) ? num : null
+  },
+
+  isValidLatitude(value) {
+    return typeof value === 'number' && value >= -90 && value <= 90
+  },
+
+  isValidLongitude(value) {
+    return typeof value === 'number' && value >= -180 && value <= 180
+  },
+
+  normalizeCoordinatePair(latitudeValue, longitudeValue) {
+    const latitude = this.parseCoordinate(latitudeValue)
+    const longitude = this.parseCoordinate(longitudeValue)
+
+    if (latitude === null || longitude === null) {
+      return {
+        latitude: null,
+        longitude: null
+      }
+    }
+
+    if (this.isValidLatitude(latitude) && this.isValidLongitude(longitude)) {
+      return { latitude, longitude }
+    }
+
+    if (this.isValidLatitude(longitude) && this.isValidLongitude(latitude)) {
+      return {
+        latitude: longitude,
+        longitude: latitude
+      }
+    }
+
+    return {
+      latitude: null,
+      longitude: null
+    }
   },
 
   formatCoordinateText(value) {

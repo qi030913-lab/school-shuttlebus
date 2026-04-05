@@ -147,10 +147,11 @@ Page({
 
     try {
       const location = await this.getLocation()
-      this.userLocation = {
-        latitude: Number(location.latitude),
-        longitude: Number(location.longitude)
+      const userLocation = this.normalizeCoordinatePair(location.latitude, location.longitude)
+      if (userLocation.latitude === null || userLocation.longitude === null) {
+        throw new Error('invalid-user-location')
       }
+      this.userLocation = userLocation
       this.setData({
         userLocationText: '已显示你的位置，并连线到在线车辆'
       })
@@ -509,8 +510,7 @@ Page({
   },
 
   decorateVehicle(item) {
-    const latitude = this.parseCoordinate(item.latitude)
-    const longitude = this.parseCoordinate(item.longitude)
+    const { latitude, longitude } = this.normalizeCoordinatePair(item.latitude, item.longitude)
     const speed = typeof item.speed === 'number' ? item.speed : 0
     const distanceMeters = this.userLocation && latitude !== null && longitude !== null
       ? this.calculateDistanceMeters(
@@ -539,6 +539,42 @@ Page({
     }
     const num = Number(value)
     return Number.isFinite(num) ? num : null
+  },
+
+  isValidLatitude(value) {
+    return typeof value === 'number' && value >= -90 && value <= 90
+  },
+
+  isValidLongitude(value) {
+    return typeof value === 'number' && value >= -180 && value <= 180
+  },
+
+  normalizeCoordinatePair(latitudeValue, longitudeValue) {
+    const latitude = this.parseCoordinate(latitudeValue)
+    const longitude = this.parseCoordinate(longitudeValue)
+
+    if (latitude === null || longitude === null) {
+      return {
+        latitude: null,
+        longitude: null
+      }
+    }
+
+    if (this.isValidLatitude(latitude) && this.isValidLongitude(longitude)) {
+      return { latitude, longitude }
+    }
+
+    if (this.isValidLatitude(longitude) && this.isValidLongitude(latitude)) {
+      return {
+        latitude: longitude,
+        longitude: latitude
+      }
+    }
+
+    return {
+      latitude: null,
+      longitude: null
+    }
   },
 
   formatDistance(distanceMeters) {

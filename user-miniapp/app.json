@@ -14,5 +14,8 @@
     "scope.userLocation": {
       "desc": "用于显示你与车辆距离"
     }
-  }
+  },
+  "requiredPrivateInfos": [
+    "getLocation"
+  ]
 }
