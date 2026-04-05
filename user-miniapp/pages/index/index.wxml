@@ -6,14 +6,31 @@
     <view class="hero-card">
       <picker mode="selector" range="{{routes}}" range-key="routeName" value="{{routeIndex}}" bindchange="onRouteChange">
         <view class="route-showcase">
-          <view class="route-showcase-label">当前线路</view>
-          <view class="route-showcase-name">{{routeName || '摆渡线路总览'}}</view>
-          <view class="route-showcase-time">服务时段 {{routeServiceTime || '加载中...'}}</view>
+          <view class="route-showcase-main">
+            <view class="route-showcase-icon-shell">
+              <image class="route-showcase-icon" src="/assets/bus-marker.png" mode="aspectFit"></image>
+            </view>
+            <view class="route-showcase-copy">
+              <view class="route-showcase-title-box">
+                <view class="route-showcase-name">{{routeName || '摆渡线路总览'}}</view>
+                <view class="route-showcase-badge">当前线路</view>
+              </view>
+            </view>
+          </view>
+          <view class="route-showcase-metrics">
+            <view class="route-showcase-label">服务时段</view>
+            <view class="route-showcase-time">{{routeServiceTime || '加载中...'}}</view>
+          </view>
+          <!-- <view class="route-progress-track">
+            <view class="route-progress-fill" style="width: {{routeProgressWidth}};"></view>
+          </view> -->
         </view>
       </picker>
 
       <view class="hero-info-card">
-        <view class="hero-stat-label">实时车辆</view>
+        <view class="hero-info-head">
+          <view class="hero-stat-label">实时车辆</view>
+        </view>
         <block wx:if="{{vehicles.length}}">
           <view class="hero-speed-list">
             <view
@@ -25,12 +42,29 @@
               hover-class="hero-speed-row-active"
               hover-stay-time="80"
             >
-              <view class="hero-speed-main">
-                <view class="hero-speed-vehicle">{{item.vehicleId}}</view>
-                <view class="hero-speed-driver">{{item.driverName || '未登记司机'}}</view>
-                <view class="hero-speed-distance">{{item.distanceText}}</view>
+              <view class="hero-speed-top">
+                <view class="hero-speed-main">
+                  <view class="hero-vehicle-meta">
+                    <view class="hero-vehicle-dot {{item.status === 'RUNNING' ? 'hero-vehicle-dot-running' : 'hero-vehicle-dot-idle'}}"></view>
+                    <view class="hero-speed-vehicle">{{item.vehicleId}}</view>
+                  </view>
+                  <view class="hero-speed-driver">{{item.driverName || '未登记司机'}}</view>
+                </view>
+                <view class="hero-speed-tag">{{item.status === 'RUNNING' ? '在线' : '停运'}}</view>
               </view>
-              <view class="hero-speed-value">{{item.speedText}}</view>
+              <view class="hero-speed-bottom">
+                <view class="hero-speed-metric">
+                  <view class="hero-speed-caption">当前速度</view>
+                  <view class="hero-speed-value-line">
+                    <view class="hero-speed-value">{{item.speedValueText}}</view>
+                    <view class="hero-speed-unit">{{item.speedUnitText}}</view>
+                  </view>
+                </view>
+                <view class="hero-distance-metric">
+                  <view class="hero-speed-caption">与您距离</view>
+                  <view class="hero-speed-distance">{{item.distanceText}}</view>
+                </view>
+              </view>
             </view>
           </view>
         </block>

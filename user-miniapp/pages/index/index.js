@@ -13,6 +13,7 @@ Page({
     currentRouteId: '',
     routeName: '',
     routeServiceTime: '',
+    routeProgressWidth: '72%',
     vehicles: [],
     mapLatitude: 39.909,
     mapLongitude: 116.397,
@@ -335,10 +336,12 @@ Page({
   applyOverview(overview) {
     const vehicles = Array.isArray(overview.vehicles) ? overview.vehicles : []
     const route = overview.route || {}
+    const nextServiceTime = route.serviceTime || this.data.routeServiceTime
 
     this.setData({
       routeName: route.routeName || this.data.routeName,
-      routeServiceTime: route.serviceTime || this.data.routeServiceTime
+      routeServiceTime: nextServiceTime,
+      routeProgressWidth: this.getRouteProgressWidth(nextServiceTime)
     })
 
     this.applyVehicles(vehicles)
@@ -524,7 +527,9 @@ Page({
       longitude,
       status: item.status || 'UNKNOWN',
       distanceText: distanceMeters === null ? '未开启用户定位' : `距离你 ${this.formatDistance(distanceMeters)}`,
-      speedText: `${Number(speed || 0).toFixed(1)} m/s`
+      speedText: `${Number(speed || 0).toFixed(1)} m/s`,
+      speedValueText: Number(speed || 0).toFixed(1),
+      speedUnitText: 'm/s'
     }
   },
 
@@ -544,5 +549,40 @@ Page({
       return `${(distanceMeters / 1000).toFixed(1)}km`
     }
     return `${Math.round(distanceMeters / 1000)}km`
+  },
+
+  getRouteProgressWidth(serviceTime) {
+    if (!serviceTime || !serviceTime.includes('-')) {
+      return '72%'
+    }
+
+    const [startText, endText] = serviceTime.split('-')
+    const startHour = this.parseTimeToMinutes(startText)
+    const endHour = this.parseTimeToMinutes(endText)
+    if (startHour === null || endHour === null || endHour <= startHour) {
+      return '72%'
+    }
+
+    const now = new Date()
+    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    const clamped = Math.min(Math.max(currentMinutes, startHour), endHour)
+    const ratio = (clamped - startHour) / (endHour - startHour)
+    const percent = 18 + ratio * 70
+    return `${percent.toFixed(0)}%`
+  },
+
+  parseTimeToMinutes(value) {
+    const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})$/)
+    if (!match) {
+      return null
+    }
+
+    const hours = Number(match[1])
+    const minutes = Number(match[2])
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+      return null
+    }
+
+    return hours * 60 + minutes
   }
 })
