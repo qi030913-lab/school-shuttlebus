@@ -74,79 +74,17 @@
   color: rgba(255, 255, 255, 0.78);
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18rpx;
-  margin-top: 22rpx;
-}
-
-.hero-stats-grid {
+.hero-info-card {
   margin-top: 18rpx;
-}
-
-.stat-card {
-  padding: 24rpx;
+  padding: 24rpx 24rpx 22rpx;
   border-radius: 26rpx;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1rpx solid rgba(212, 226, 233, 0.8);
-  box-shadow: 0 12rpx 28rpx rgba(21, 52, 74, 0.06);
-}
-
-.hero-stat-card {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
   border: 1rpx solid rgba(255, 255, 255, 0.12);
-  box-shadow: none;
-}
-
-.hero-stat-card:active {
-  transform: scale(0.98);
-  opacity: 0.96;
-}
-
-.accent-card {
-  background: linear-gradient(145deg, #ecfaf8, #f7fffe);
-}
-
-.warm-card {
-  background: linear-gradient(145deg, #fff7eb, #fffcf4);
-}
-
-.hero-info-card {
-  padding-bottom: 22rpx;
-}
-
-.stat-label {
-  font-size: 24rpx;
-  color: #5f7480;
 }
 
 .hero-stat-label {
+  font-size: 24rpx;
   color: rgba(255, 255, 255, 0.7);
-}
-
-.stat-value {
-  margin-top: 12rpx;
-  font-size: 48rpx;
-  line-height: 1;
-  color: #103945;
-  font-weight: 700;
-  font-family: "DIN Alternate", "PingFang SC", "Microsoft YaHei", sans-serif;
-}
-
-.hero-stat-value {
-  color: #ffffff;
-}
-
-.stat-hint {
-  margin-top: 10rpx;
-  font-size: 22rpx;
-  color: #79909d;
-  line-height: 1.6;
-}
-
-.hero-stat-hint {
-  color: rgba(255, 255, 255, 0.66);
 }
 
 .hero-speed-list {

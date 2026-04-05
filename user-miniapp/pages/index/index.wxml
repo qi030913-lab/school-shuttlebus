@@ -12,30 +12,23 @@
         </view>
       </picker>
 
-      <view class="stats-grid hero-stats-grid">
-        <view class="stat-card hero-stat-card" bindtap="goToVehiclesPage">
-          <view class="stat-label hero-stat-label">在线车辆</view>
-          <view class="stat-value hero-stat-value">{{liveVehicleCount}}</view>
-          <view class="stat-hint hero-stat-hint">当前线路可见车辆</view>
-        </view>
-        <view class="stat-card hero-stat-card hero-info-card">
-          <view class="stat-label hero-stat-label">实时车辆</view>
-          <block wx:if="{{vehicles.length}}">
-            <view class="hero-speed-list">
-              <view wx:for="{{vehicles}}" wx:key="vehicleId" class="hero-speed-row">
-                <view class="hero-speed-main">
-                  <view class="hero-speed-vehicle">{{item.vehicleId}}</view>
-                  <view class="hero-speed-driver">{{item.driverName || '未登记司机'}}</view>
-                  <view class="hero-speed-distance">{{item.distanceText}}</view>
-                </view>
-                <view class="hero-speed-value">{{item.speedText}}</view>
+      <view class="hero-info-card">
+        <view class="hero-stat-label">实时车辆</view>
+        <block wx:if="{{vehicles.length}}">
+          <view class="hero-speed-list">
+            <view wx:for="{{vehicles}}" wx:key="vehicleId" class="hero-speed-row">
+              <view class="hero-speed-main">
+                <view class="hero-speed-vehicle">{{item.vehicleId}}</view>
+                <view class="hero-speed-driver">{{item.driverName || '未登记司机'}}</view>
+                <view class="hero-speed-distance">{{item.distanceText}}</view>
               </view>
+              <view class="hero-speed-value">{{item.speedText}}</view>
             </view>
-          </block>
-          <block wx:else>
-            <view class="hero-speed-empty">当前线路暂无在线车辆</view>
-          </block>
-        </view>
+          </view>
+        </block>
+        <block wx:else>
+          <view class="hero-speed-empty">当前线路暂无在线车辆</view>
+        </block>
       </view>
     </view>
 

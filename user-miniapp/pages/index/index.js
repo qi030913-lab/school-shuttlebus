@@ -19,11 +19,6 @@ Page({
     markers: [],
     polyline: [],
     refreshing: false,
-    socketStatusText: '实时连接中',
-    socketStatusClass: 'status-connecting',
-    lastUpdateMode: '等待数据',
-    lastUpdateText: '--:--:--',
-    liveVehicleCount: 0,
     userLocationText: '允许定位后可显示你与车辆的距离'
   },
 
@@ -156,7 +151,7 @@ Page({
       this.setData({
         userLocationText: '已显示你的位置，并连线到在线车辆'
       })
-      this.applyVehicles(this.latestVehiclesRaw, false)
+      this.applyVehicles(this.latestVehiclesRaw)
       return true
     } catch (e) {
       if (!silent) {
@@ -167,30 +162,7 @@ Page({
   },
 
   setSocketStatus(status) {
-    const statusMap = {
-      connecting: {
-        text: '实时连接中',
-        className: 'status-connecting'
-      },
-      connected: {
-        text: '实时已连接',
-        className: 'status-connected'
-      },
-      reconnecting: {
-        text: '正在重连',
-        className: 'status-reconnecting'
-      },
-      disconnected: {
-        text: '实时已断开',
-        className: 'status-disconnected'
-      }
-    }
-
-    const current = statusMap[status] || statusMap.disconnected
-    this.setData({
-      socketStatusText: current.text,
-      socketStatusClass: current.className
-    })
+    this.socketStatus = status || 'disconnected'
   },
 
   clearSocketReconnectTimer() {
@@ -241,7 +213,7 @@ Page({
         const body = JSON.parse(res.data)
         const vehicles = Array.isArray(body && body.data) ? body.data : []
         const filtered = vehicles.filter(item => !this.data.currentRouteId || item.routeId === this.data.currentRouteId)
-        this.applyVehicles(filtered, true)
+        this.applyVehicles(filtered)
       } catch (e) {
         console.log('socket parse skip', e)
       }
@@ -307,24 +279,6 @@ Page({
     await this.loadOverview(true)
   },
 
-  goToVehiclesPage() {
-    const {
-      currentRouteId,
-      routeName,
-      routeServiceTime
-    } = this.data
-
-    const query = [
-      `routeId=${encodeURIComponent(currentRouteId || '')}`,
-      `routeName=${encodeURIComponent(routeName || '')}`,
-      `serviceTime=${encodeURIComponent(routeServiceTime || '')}`
-    ].join('&')
-
-    wx.navigateTo({
-      url: `/pages/vehicles/index?${query}`
-    })
-  },
-
   async loadOverview(showLoading = true) {
     const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : true
     if (!this.data.currentRouteId) {
@@ -356,10 +310,10 @@ Page({
       routeServiceTime: route.serviceTime || this.data.routeServiceTime
     })
 
-    this.applyVehicles(vehicles, false)
+    this.applyVehicles(vehicles)
   },
 
-  applyVehicles(vehicles, fromSocket) {
+  applyVehicles(vehicles) {
     this.latestVehiclesRaw = Array.isArray(vehicles) ? vehicles : []
     const decoratedVehicles = this.latestVehiclesRaw.map(item => this.decorateVehicle(item))
     const vehicleMarkers = this.buildVehicleMarkers(decoratedVehicles)
@@ -370,8 +324,7 @@ Page({
     const nextState = {
       vehicles: decoratedVehicles,
       markers,
-      polyline: distanceLines,
-      liveVehicleCount: decoratedVehicles.length
+      polyline: distanceLines
     }
 
     if (this.shouldResetMapCenter) {
@@ -382,7 +335,6 @@ Page({
     }
 
     this.setData(nextState)
-    this.updateLastUpdate(fromSocket ? '实时推送' : '接口刷新')
   },
 
   buildUserMarker() {
@@ -549,7 +501,6 @@ Page({
     const latitude = this.parseCoordinate(item.latitude)
     const longitude = this.parseCoordinate(item.longitude)
     const speed = typeof item.speed === 'number' ? item.speed : 0
-    const status = item.status || 'UNKNOWN'
     const distanceMeters = this.userLocation && latitude !== null && longitude !== null
       ? this.calculateDistanceMeters(
         this.userLocation.latitude,
@@ -558,33 +509,14 @@ Page({
         longitude
       )
       : null
-    const updateTimeText = this.formatUpdateTime(item.updateTime)
-    const statusTextMap = {
-      RUNNING: '运行中',
-      STOPPED: '已收车',
-      UNKNOWN: '待更新'
-    }
-    const statusClassMap = {
-      RUNNING: 'vehicle-status-running',
-      STOPPED: 'vehicle-status-stopped',
-      UNKNOWN: 'vehicle-status-idle'
-    }
 
     return {
       ...item,
       latitude,
       longitude,
-      status,
-      statusText: statusTextMap[status] || '待更新',
-      statusClass: statusClassMap[status] || 'vehicle-status-idle',
-      latitudeText: this.formatCoordinateText(latitude),
-      longitudeText: this.formatCoordinateText(longitude),
+      status: item.status || 'UNKNOWN',
       distanceText: distanceMeters === null ? '未开启用户定位' : `距离你 ${this.formatDistance(distanceMeters)}`,
-      coordinateText: latitude !== null && longitude !== null
-        ? `${latitude.toFixed(6)} / ${longitude.toFixed(6)}`
-        : '等待定位',
-      speedText: `${Number(speed || 0).toFixed(1)} m/s`,
-      updateTimeText
+      speedText: `${Number(speed || 0).toFixed(1)} m/s`
     }
   },
 
@@ -596,10 +528,6 @@ Page({
     return Number.isFinite(num) ? num : null
   },
 
-  formatCoordinateText(value) {
-    return value !== null ? value.toFixed(6) : '--'
-  },
-
   formatDistance(distanceMeters) {
     if (distanceMeters < 1000) {
       return `${Math.round(distanceMeters)}m`
@@ -608,70 +536,5 @@ Page({
       return `${(distanceMeters / 1000).toFixed(1)}km`
     }
     return `${Math.round(distanceMeters / 1000)}km`
-  },
-
-  updateLastUpdate(mode) {
-    this.setData({
-      lastUpdateMode: mode,
-      lastUpdateText: this.formatClock(new Date())
-    })
-  },
-
-  formatClock(date) {
-    const hh = String(date.getHours()).padStart(2, '0')
-    const mm = String(date.getMinutes()).padStart(2, '0')
-    const ss = String(date.getSeconds()).padStart(2, '0')
-    return `${hh}:${mm}:${ss}`
-  },
-
-  formatUpdateTime(value) {
-    if (!value) {
-      return '--'
-    }
-
-    if (Array.isArray(value) && value.length >= 6) {
-      const [year, month, day, hour, minute, second] = value
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`
-    }
-
-    if (typeof value === 'string') {
-      return value.replace('T', ' ').slice(0, 19)
-    }
-
-    if (typeof value === 'number') {
-      return this.formatDateTime(new Date(value))
-    }
-
-    if (typeof value === 'object') {
-      const year = value.year
-      const month = value.monthValue || value.month
-      const day = value.dayOfMonth || value.day
-      const hour = value.hour
-      const minute = value.minute
-      const second = value.second
-
-      if (
-        year !== undefined
-        && month !== undefined
-        && day !== undefined
-        && hour !== undefined
-        && minute !== undefined
-        && second !== undefined
-      ) {
-        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`
-      }
-    }
-
-    return '--'
-  },
-
-  formatDateTime(date) {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hh = String(date.getHours()).padStart(2, '0')
-    const mm = String(date.getMinutes()).padStart(2, '0')
-    const ss = String(date.getSeconds()).padStart(2, '0')
-    return `${year}-${month}-${day} ${hh}:${mm}:${ss}`
   }
 })
