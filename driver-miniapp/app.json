@@ -4,7 +4,7 @@
     "pages/dashboard/dashboard"
   ],
   "window": {
-    "navigationBarTitleText": "摆渡车司机端 Demo",
+    "navigationBarTitleText": "摆渡车司机",
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black"
   },
