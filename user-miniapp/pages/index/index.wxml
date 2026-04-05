@@ -16,7 +16,15 @@
         <view class="hero-stat-label">实时车辆</view>
         <block wx:if="{{vehicles.length}}">
           <view class="hero-speed-list">
-            <view wx:for="{{vehicles}}" wx:key="vehicleId" class="hero-speed-row">
+            <view
+              wx:for="{{vehicles}}"
+              wx:key="vehicleId"
+              class="hero-speed-row"
+              bindtap="goToVehicleDetail"
+              data-vehicle-id="{{item.vehicleId}}"
+              hover-class="hero-speed-row-active"
+              hover-stay-time="80"
+            >
               <view class="hero-speed-main">
                 <view class="hero-speed-vehicle">{{item.vehicleId}}</view>
                 <view class="hero-speed-driver">{{item.driverName || '未登记司机'}}</view>

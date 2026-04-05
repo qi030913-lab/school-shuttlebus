@@ -102,6 +102,12 @@
   padding: 16rpx 18rpx;
   border-radius: 20rpx;
   background: rgba(255, 255, 255, 0.08);
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+
+.hero-speed-row-active {
+  transform: scale(0.98);
+  opacity: 0.92;
 }
 
 .hero-speed-main {

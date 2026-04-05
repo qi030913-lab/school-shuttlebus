@@ -9,13 +9,18 @@ Page({
     routeId: '',
     routeName: '',
     serviceTime: '',
+    vehicleId: '',
+    detailMode: false,
     vehicles: [],
     refreshing: false,
     socketStatusText: '实时连接中',
     socketStatusClass: 'status-connecting',
     liveVehicleCount: 0,
     stoppedVehicleCount: 0,
-    lastUpdateText: '--:--:--'
+    lastUpdateText: '--:--:--',
+    pageTitle: '车辆明细',
+    pageSubtitle: '实时展示司机、状态、速度、经纬度与更新时间',
+    emptyText: '当前线路暂时没有在线摆渡车'
   },
 
   async onLoad(options) {
@@ -27,15 +32,30 @@ Page({
     const routeId = decodeURIComponent(options.routeId || '')
     const routeName = decodeURIComponent(options.routeName || '')
     const serviceTime = decodeURIComponent(options.serviceTime || '')
+    const vehicleId = decodeURIComponent(options.vehicleId || '')
+    const detailMode = !!vehicleId
 
     this.setData({
       routeId,
       routeName,
-      serviceTime
+      serviceTime,
+      vehicleId,
+      detailMode,
+      pageTitle: detailMode ? '车辆详情' : '车辆明细',
+      pageSubtitle: detailMode
+        ? '查看当前车辆的实时状态、速度、经纬度与更新时间'
+        : '实时展示司机、状态、速度、经纬度与更新时间',
+      emptyText: detailMode ? '当前未获取到该车辆信息' : '当前线路暂时没有在线摆渡车'
     })
 
-    if (!routeId) {
-      wx.showToast({ title: '缺少线路信息', icon: 'none' })
+    if (detailMode) {
+      wx.setNavigationBarTitle({
+        title: '车辆详情'
+      })
+    }
+
+    if (!routeId && !vehicleId) {
+      wx.showToast({ title: '缺少车辆信息', icon: 'none' })
       return
     }
 
@@ -133,7 +153,7 @@ Page({
       try {
         const body = JSON.parse(res.data)
         const vehicles = Array.isArray(body && body.data) ? body.data : []
-        const filtered = vehicles.filter(item => !this.data.routeId || item.routeId === this.data.routeId)
+        const filtered = this.filterVehicles(vehicles)
         this.applyVehicles(filtered, true)
       } catch (e) {
         console.log('vehicle socket parse skip', e)
@@ -162,7 +182,7 @@ Page({
 
   async loadOverview(showLoading = true) {
     const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : true
-    if (!this.data.routeId) {
+    if (!this.data.routeId && !this.data.vehicleId) {
       return
     }
 
@@ -171,6 +191,17 @@ Page({
     }
 
     try {
+      if (this.data.detailMode) {
+        const vehicle = await request(`/api/user/vehicles/${encodeURIComponent(this.data.vehicleId)}`)
+        const nextVehicles = vehicle && vehicle.vehicleId ? [vehicle] : []
+        this.setData({
+          routeId: (vehicle && vehicle.routeId) || this.data.routeId,
+          routeName: (vehicle && vehicle.routeName) || this.data.routeName
+        })
+        this.applyVehicles(nextVehicles, false)
+        return
+      }
+
       const overview = await request(`/api/user/overview?routeId=${this.data.routeId}`)
       const route = overview.route || {}
       this.setData({
@@ -185,6 +216,16 @@ Page({
         this.setData({ refreshing: false })
       }
     }
+  },
+
+  filterVehicles(vehicles) {
+    const list = Array.isArray(vehicles) ? vehicles : []
+
+    if (this.data.detailMode) {
+      return list.filter(item => item.vehicleId === this.data.vehicleId)
+    }
+
+    return list.filter(item => !this.data.routeId || item.routeId === this.data.routeId)
   },
 
   applyVehicles(vehicles, fromSocket) {

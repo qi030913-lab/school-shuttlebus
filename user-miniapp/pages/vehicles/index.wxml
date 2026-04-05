@@ -6,8 +6,8 @@
     <view class="list-card">
       <view class="list-head">
         <view>
-          <view class="list-title">车辆明细</view>
-          <view class="list-subtitle">实时展示司机、状态、速度、经纬度与更新时间</view>
+          <view class="list-title">{{pageTitle}}</view>
+          <view class="list-subtitle">{{pageSubtitle}}</view>
         </view>
         <button class="refresh-btn" size="mini" loading="{{refreshing}}" bindtap="loadOverview">刷新</button>
       </view>
@@ -61,7 +61,7 @@
       </block>
 
       <block wx:else>
-        <view class="empty-block">当前线路暂时没有在线摆渡车</view>
+        <view class="empty-block">{{emptyText}}</view>
       </block>
     </view>
   </view>

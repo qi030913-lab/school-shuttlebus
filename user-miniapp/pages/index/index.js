@@ -134,10 +134,12 @@ Page({
   async refreshUserLocation(silent = true) {
     const hasPermission = await this.ensureLocationPermission(silent)
     if (!hasPermission) {
-      if (!this.userLocation) {
-        this.setData({
-          userLocationText: '允许定位后可显示你与车辆的距离'
-        })
+      this.userLocation = null
+      this.setData({
+        userLocationText: '允许定位后可显示你与车辆的距离'
+      })
+      if (this.latestVehiclesRaw) {
+        this.applyVehicles(this.latestVehiclesRaw)
       }
       return false
     }
@@ -154,6 +156,13 @@ Page({
       this.applyVehicles(this.latestVehiclesRaw)
       return true
     } catch (e) {
+      this.userLocation = null
+      this.setData({
+        userLocationText: '获取定位失败，暂不显示你与车辆的距离'
+      })
+      if (this.latestVehiclesRaw) {
+        this.applyVehicles(this.latestVehiclesRaw)
+      }
       if (!silent) {
         wx.showToast({ title: '获取你的定位失败', icon: 'none' })
       }
@@ -252,7 +261,7 @@ Page({
         routeServiceTime: first.serviceTime || ''
       })
       if (first.routeId) {
-        await this.loadOverview(false)
+        await this.loadOverview(false, first.routeId)
       }
     } catch (e) {
       wx.showToast({ title: '加载线路失败', icon: 'none' })
@@ -271,7 +280,7 @@ Page({
       routeServiceTime: route.serviceTime || ''
     })
 
-    this.loadOverview(true)
+    this.loadOverview(true, route.routeId || '')
   },
 
   async refreshAll() {
@@ -279,9 +288,28 @@ Page({
     await this.loadOverview(true)
   },
 
-  async loadOverview(showLoading = true) {
+  goToVehicleDetail(e) {
+    const { vehicleId } = e.currentTarget.dataset || {}
+    if (!vehicleId) {
+      return
+    }
+
+    const query = [
+      `vehicleId=${encodeURIComponent(vehicleId)}`,
+      `routeId=${encodeURIComponent(this.data.currentRouteId || '')}`,
+      `routeName=${encodeURIComponent(this.data.routeName || '')}`,
+      `serviceTime=${encodeURIComponent(this.data.routeServiceTime || '')}`
+    ].join('&')
+
+    wx.navigateTo({
+      url: `/pages/vehicles/index?${query}`
+    })
+  },
+
+  async loadOverview(showLoading = true, routeId = '') {
     const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : true
-    if (!this.data.currentRouteId) {
+    const targetRouteId = routeId || this.data.currentRouteId
+    if (!targetRouteId) {
       return
     }
 
@@ -290,7 +318,10 @@ Page({
     }
 
     try {
-      const overview = await request(`/api/user/overview?routeId=${this.data.currentRouteId}`)
+      const overview = await request(`/api/user/overview?routeId=${targetRouteId}`)
+      if (targetRouteId !== this.data.currentRouteId) {
+        return
+      }
       this.applyOverview(overview)
     } catch (e) {
       wx.showToast({ title: '刷新失败', icon: 'none' })
@@ -328,9 +359,10 @@ Page({
     }
 
     if (this.shouldResetMapCenter) {
-      const firstMarker = vehicleMarkers[0] || userMarker
-      nextState.mapLatitude = firstMarker ? firstMarker.latitude : 39.909
-      nextState.mapLongitude = firstMarker ? firstMarker.longitude : 116.397
+      const firstVehicle = decoratedVehicles.find(item => item.latitude !== null && item.longitude !== null)
+      const firstPoint = firstVehicle || userMarker
+      nextState.mapLatitude = firstPoint ? firstPoint.latitude : 39.909
+      nextState.mapLongitude = firstPoint ? firstPoint.longitude : 116.397
       this.shouldResetMapCenter = false
     }
 
@@ -392,40 +424,12 @@ Page({
   },
 
   buildVehicleMarkers(vehicles) {
-    const clusters = []
-    let markerId = 1
-
-    vehicles
+    return vehicles
       .filter(item => item.latitude !== null && item.longitude !== null)
-      .forEach((item) => {
-        const cluster = this.findNearbyMarkerCluster(clusters, item.latitude, item.longitude)
-        if (cluster) {
-          cluster.items.push(item)
-          return
-        }
-
-        clusters.push({
-          anchorLatitude: item.latitude,
-          anchorLongitude: item.longitude,
-          items: [item]
-        })
-      })
-
-    const markers = []
-
-    clusters.forEach((cluster) => {
-      cluster.items.forEach((item, index) => {
-        const displayPoint = this.getMarkerDisplayPoint(
-          cluster.anchorLatitude,
-          cluster.anchorLongitude,
-          index,
-          cluster.items.length
-        )
-
-        markers.push({
-          id: markerId++,
-          latitude: displayPoint.latitude,
-          longitude: displayPoint.longitude,
+      .map((item, index) => ({
+          id: index + 1,
+          latitude: item.latitude,
+          longitude: item.longitude,
           iconPath: VEHICLE_MARKER_ICON,
           width: 34,
           height: 34,
@@ -444,45 +448,7 @@ Page({
             borderColor: item.status === 'RUNNING' ? '#0f766e' : '#9aa8b4',
             borderWidth: 1
           }
-        })
-      })
-    })
-
-    return markers
-  },
-
-  findNearbyMarkerCluster(clusters, latitude, longitude) {
-    const MAX_OVERLAP_DISTANCE_METERS = 18
-    return clusters.find(cluster => (
-      this.calculateDistanceMeters(
-        cluster.anchorLatitude,
-        cluster.anchorLongitude,
-        latitude,
-        longitude
-      ) <= MAX_OVERLAP_DISTANCE_METERS
-    ))
-  },
-
-  getMarkerDisplayPoint(latitude, longitude, index, total) {
-    if (total <= 1) {
-      return { latitude, longitude }
-    }
-
-    const markersPerRing = 6
-    const ringIndex = Math.floor(index / markersPerRing)
-    const positionInRing = index % markersPerRing
-    const pointsInThisRing = Math.min(markersPerRing, total - ringIndex * markersPerRing)
-    const radiusMeters = 12 + ringIndex * 8
-    const angle = (Math.PI * 2 * positionInRing) / Math.max(pointsInThisRing, 1)
-
-    const latitudeOffset = (radiusMeters * Math.sin(angle)) / 111320
-    const longitudeOffset = (radiusMeters * Math.cos(angle))
-      / (111320 * Math.max(Math.cos((latitude * Math.PI) / 180), 0.2))
-
-    return {
-      latitude: latitude + latitudeOffset,
-      longitude: longitude + longitudeOffset
-    }
+        }))
   },
 
   calculateDistanceMeters(lat1, lng1, lat2, lng2) {
