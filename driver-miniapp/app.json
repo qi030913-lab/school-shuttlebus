@@ -4,7 +4,7 @@
     "pages/dashboard/dashboard"
   ],
   "window": {
-    "navigationBarTitleText": "摆渡车司机端Demo",
+    "navigationBarTitleText": "摆渡车司机端 Demo",
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black"
   },
@@ -12,9 +12,12 @@
   "sitemapLocation": "sitemap.json",
   "permission": {
     "scope.userLocation": {
-      "desc": "用于上报摆渡车当前位置，给乘车学生查看车辆实时位置"
+      "desc": "用于上传摆渡车当前位置，给乘客查看车辆实时位置"
     }
   },
+  "requiredBackgroundModes": [
+    "location"
+  ],
   "requiredPrivateInfos": [
     "getLocation",
     "onLocationChange",

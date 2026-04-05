@@ -1,6 +1,9 @@
 const { request } = require('../../utils')
 
 const UPLOAD_THROTTLE_MS = 5000
+const TRIP_STATUS_IDLE = '未发车'
+const TRIP_STATUS_RUNNING = '运行中'
+const TRIP_STATUS_STOPPED = '已结束'
 
 Page({
   data: {
@@ -8,7 +11,7 @@ Page({
     vehicleId: '',
     routeId: '',
     routeName: '',
-    tripStatus: '未发车',
+    tripStatus: TRIP_STATUS_IDLE,
     latitude: '--',
     longitude: '--',
     speed: '--',
@@ -54,12 +57,26 @@ Page({
     }
   },
 
+  onShow() {
+    if (this.data.autoUpload && !this.locationTrackingStarted) {
+      this.resumeAutoUploadAfterShow()
+    }
+  },
+
   onHide() {
   },
 
   onUnload() {
     this.stopAutoUploadInternal(false)
     this.stopLocationTracking()
+  },
+
+  async resumeAutoUploadAfterShow() {
+    if (!this.data.autoUpload || this.locationTrackingStarted) {
+      return
+    }
+
+    await this.enableAutoUpload({ showUploadToast: false })
   },
 
   clearPendingUploadTimer() {
@@ -135,6 +152,7 @@ Page({
         resolve()
         return
       }
+
       wx.stopLocationUpdate({
         success: resolve,
         fail: () => resolve()
@@ -148,6 +166,7 @@ Page({
         reject(new Error('background-api-unavailable'))
         return
       }
+
       wx.startLocationUpdateBackground({
         success: resolve,
         fail: reject
@@ -195,14 +214,6 @@ Page({
     }
   },
 
-  isPermissionError(errMsg = '') {
-    const text = String(errMsg).toLowerCase()
-    return text.includes('auth deny')
-      || text.includes('auth denied')
-      || text.includes('permission denied')
-      || text.includes('scope.userlocation')
-  },
-
   isLocationServiceError(errMsg = '') {
     const text = String(errMsg).toLowerCase()
     return text.includes('system permission denied')
@@ -223,6 +234,7 @@ Page({
     if (!location) {
       return
     }
+
     this.setData({
       latitude: Number(location.latitude).toFixed(6),
       longitude: Number(location.longitude).toFixed(6),
@@ -240,7 +252,7 @@ Page({
 
   async restoreRuntimeState() {
     if (!this.data.vehicleId) {
-      this.setData({ tripStatus: '未发车' })
+      this.setData({ tripStatus: TRIP_STATUS_IDLE })
       this.resetLocationPanel()
       return
     }
@@ -248,7 +260,7 @@ Page({
     try {
       const runtime = await request(`/api/user/vehicles/${encodeURIComponent(this.data.vehicleId)}`)
       if (!runtime || !runtime.vehicleId) {
-        this.setData({ tripStatus: '未发车' })
+        this.setData({ tripStatus: TRIP_STATUS_IDLE })
         this.resetLocationPanel()
         return
       }
@@ -272,13 +284,13 @@ Page({
       }
 
       this.setData({
-        tripStatus: runtime.status === 'RUNNING' ? '运行中' : '已结束',
+        tripStatus: runtime.status === 'RUNNING' ? TRIP_STATUS_RUNNING : TRIP_STATUS_STOPPED,
         routeId: runtime.routeId || this.data.routeId,
         routeName: runtime.routeName || this.data.routeName
       })
     } catch (e) {
       this.latestLocation = null
-      this.setData({ tripStatus: '未发车' })
+      this.setData({ tripStatus: TRIP_STATUS_IDLE })
       this.resetLocationPanel()
     }
   },
@@ -308,13 +320,16 @@ Page({
       if (this.locationChangeHandler && wx.offLocationChange) {
         wx.offLocationChange(this.locationChangeHandler)
       }
+
       this.locationChangeHandler = handler
       wx.onLocationChange(handler)
+
       try {
         await this.startLocationUpdateBackground()
       } catch (backgroundErr) {
         await this.startLocationUpdate()
       }
+
       this.locationTrackingStarted = true
       return true
     } catch (e) {
@@ -324,9 +339,11 @@ Page({
       } else {
         wx.showToast({ title: '开启持续定位失败', icon: 'none' })
       }
+
       if (this.locationChangeHandler && wx.offLocationChange) {
         wx.offLocationChange(this.locationChangeHandler)
       }
+
       this.locationChangeHandler = null
       this.locationTrackingStarted = false
       return false
@@ -352,55 +369,89 @@ Page({
   stopAutoUploadInternal(showToast, message = '') {
     this.clearPendingUploadTimer()
     this.pendingUploadLocation = null
+
     if (this.data.autoUpload) {
       this.setData({ autoUpload: false })
     }
+
     if (showToast && message) {
       wx.showToast({ title: message, icon: 'none' })
+    }
+  },
+
+  async enableAutoUpload({ showUploadToast = true } = {}) {
+    const trackingReady = await this.startLocationTracking()
+    if (!trackingReady) {
+      return false
+    }
+
+    if (!this.data.autoUpload) {
+      this.setData({ autoUpload: true })
+    }
+
+    if (this.latestLocation) {
+      const success = await this.enqueueUpload(this.latestLocation, true, !showUploadToast)
+      if (!success) {
+        this.stopLocationTracking()
+      }
+      return success
+    }
+
+    try {
+      const location = this.normalizeLocation(await this.getLocation())
+      this.latestLocation = location
+      this.updateLocationPanel(location)
+      const success = await this.enqueueUpload(location, true, !showUploadToast)
+      if (!success) {
+        this.stopLocationTracking()
+      }
+      return success
+    } catch (e) {
+      this.stopAutoUploadInternal(true, '首次定位失败')
+      this.stopLocationTracking()
+      return false
     }
   },
 
   async startTrip() {
     try {
       await request('/api/driver/start', 'POST', {})
-      await this.tryUploadStartupLocation()
-      this.setData({ tripStatus: '运行中' })
-      wx.showToast({ title: '已发车', icon: 'success' })
+      this.setData({ tripStatus: TRIP_STATUS_RUNNING })
+      const autoUploadReady = await this.enableAutoUpload({ showUploadToast: false })
+      wx.showToast({
+        title: autoUploadReady ? '已发车' : '已发车，请检查定位',
+        icon: autoUploadReady ? 'success' : 'none'
+      })
     } catch (e) {
       wx.showToast({ title: e.message || e.msg || '发车失败', icon: 'none' })
     }
   },
 
-  async tryUploadStartupLocation() {
-    try {
-      if (this.latestLocation) {
-        await this.uploadLocation(this.latestLocation, true)
-        return
-      }
-
-      const hasPermission = await this.ensureLocationPermission()
-      if (!hasPermission) {
-        return
-      }
-
-      const location = this.normalizeLocation(await this.getLocation())
-      this.latestLocation = location
-      this.updateLocationPanel(location)
-      await this.uploadLocation(location, true)
-    } catch (e) {
-    }
-  },
-
-  async stopTrip() {
+  async finishTrip({ logoutAfterStop = false } = {}) {
     try {
       await request('/api/driver/stop', 'POST', {})
       this.stopAutoUploadInternal(false)
       this.stopLocationTracking()
-      this.setData({ tripStatus: '已结束' })
-      wx.showToast({ title: '已结束', icon: 'success' })
+      this.latestLocation = null
+      this.resetLocationPanel()
+      this.setData({ tripStatus: TRIP_STATUS_STOPPED })
+
+      if (logoutAfterStop) {
+        wx.removeStorageSync('driverInfo')
+        wx.redirectTo({ url: '/pages/login/login' })
+        return true
+      }
+
+      wx.showToast({ title: '已结束发车', icon: 'success' })
+      return true
     } catch (e) {
-      wx.showToast({ title: e.message || e.msg || '结束失败', icon: 'none' })
+      wx.showToast({ title: e.message || e.msg || '结束发车失败', icon: 'none' })
+      return false
     }
+  },
+
+  async stopTrip() {
+    await this.finishTrip()
   },
 
   async uploadOnce() {
@@ -432,33 +483,7 @@ Page({
       return
     }
 
-    const trackingReady = await this.startLocationTracking()
-    if (!trackingReady) {
-      return
-    }
-
-    this.setData({ autoUpload: true })
-
-    if (this.latestLocation) {
-      const success = await this.enqueueUpload(this.latestLocation, true, false)
-      if (!success) {
-        this.stopLocationTracking()
-      }
-      return
-    }
-
-    try {
-      const location = this.normalizeLocation(await this.getLocation())
-      this.latestLocation = location
-      this.updateLocationPanel(location)
-      const success = await this.enqueueUpload(location, true, false)
-      if (!success) {
-        this.stopLocationTracking()
-      }
-    } catch (e) {
-      this.stopAutoUploadInternal(true, '首次定位失败')
-      this.stopLocationTracking()
-    }
+    await this.enableAutoUpload({ showUploadToast: true })
   },
 
   enqueueUpload(location, force, silent) {
@@ -477,6 +502,7 @@ Page({
     if (!force && elapsed < UPLOAD_THROTTLE_MS) {
       this.pendingUploadLocation = location
       const waitMs = UPLOAD_THROTTLE_MS - elapsed
+
       if (!this.pendingUploadTimer) {
         this.pendingUploadTimer = setTimeout(() => {
           this.pendingUploadTimer = null
@@ -487,6 +513,7 @@ Page({
           }
         }, waitMs)
       }
+
       return Promise.resolve(true)
     }
 
@@ -506,7 +533,7 @@ Page({
 
       this.updateLocationPanel(location)
       this.setData({
-        tripStatus: result.status === 'RUNNING' ? '运行中' : '已结束'
+        tripStatus: result.status === 'RUNNING' ? TRIP_STATUS_RUNNING : TRIP_STATUS_STOPPED
       })
 
       if (!silent) {
@@ -517,6 +544,7 @@ Page({
       const msg = e && e.message ? e.message : (e && e.msg ? e.msg : '位置上报失败')
       if (this.data.autoUpload) {
         this.stopAutoUploadInternal(true, msg)
+        this.stopLocationTracking()
       } else {
         wx.showToast({ title: msg, icon: 'none' })
       }
@@ -538,10 +566,7 @@ Page({
     }
   },
 
-  logout() {
-    this.stopAutoUploadInternal(false)
-    this.stopLocationTracking()
-    wx.removeStorageSync('driverInfo')
-    wx.redirectTo({ url: '/pages/login/login' })
+  async logout() {
+    await this.finishTrip({ logoutAfterStop: true })
   }
 })
