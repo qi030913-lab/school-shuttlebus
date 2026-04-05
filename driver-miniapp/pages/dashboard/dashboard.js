@@ -46,6 +46,7 @@ Page({
         vehicleId: me.vehicleId || '',
         routeId: me.routeId || ''
       })
+      await this.restoreRuntimeState()
     } catch (e) {
       wx.showToast({ title: '登录态失效，请重新登录', icon: 'none' })
       wx.removeStorageSync('driverInfo')
@@ -227,6 +228,59 @@ Page({
       longitude: Number(location.longitude).toFixed(6),
       speed: Number(location.speed || 0).toFixed(2)
     })
+  },
+
+  resetLocationPanel() {
+    this.setData({
+      latitude: '--',
+      longitude: '--',
+      speed: '--'
+    })
+  },
+
+  async restoreRuntimeState() {
+    if (!this.data.vehicleId) {
+      this.setData({ tripStatus: '未发车' })
+      this.resetLocationPanel()
+      return
+    }
+
+    try {
+      const runtime = await request(`/api/user/vehicles/${encodeURIComponent(this.data.vehicleId)}`)
+      if (!runtime || !runtime.vehicleId) {
+        this.setData({ tripStatus: '未发车' })
+        this.resetLocationPanel()
+        return
+      }
+
+      const hasLocation = runtime.latitude !== null
+        && runtime.latitude !== undefined
+        && runtime.longitude !== null
+        && runtime.longitude !== undefined
+
+      if (hasLocation) {
+        const location = this.normalizeLocation({
+          latitude: runtime.latitude,
+          longitude: runtime.longitude,
+          speed: runtime.speed || 0
+        })
+        this.latestLocation = location
+        this.updateLocationPanel(location)
+      } else {
+        this.latestLocation = null
+        this.resetLocationPanel()
+      }
+
+      this.setData({
+        tripStatus: runtime.status === 'RUNNING' ? '运行中' : '已结束',
+        routeId: runtime.routeId || this.data.routeId,
+        routeName: runtime.routeName || this.data.routeName
+      })
+    } catch (e) {
+      this.latestLocation = null
+      this.setData({ tripStatus: '未发车' })
+      this.resetLocationPanel()
+    }
   },
 
   async startLocationTracking() {
