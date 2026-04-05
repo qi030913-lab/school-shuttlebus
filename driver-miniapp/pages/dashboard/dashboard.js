@@ -1,6 +1,10 @@
 const { request } = require('../../utils')
 
 const UPLOAD_THROTTLE_MS = 5000
+const TEST_START_LATITUDE = 36.239980176264595
+const TEST_START_LONGITUDE = 117.28365907055604
+const TEST_LOCATION_STEP = 0.0001
+const TEST_LOCATION_INTERVAL_MS = 1000
 const TRIP_STATUS_IDLE = '未发车'
 const TRIP_STATUS_RUNNING = '运行中'
 const TRIP_STATUS_STOPPED = '已结束'
@@ -16,7 +20,8 @@ Page({
     longitude: '--',
     speed: '--',
     autoUpload: false,
-    mockMode: false
+    mockMode: false,
+    testing: false
   },
 
   async onLoad() {
@@ -41,6 +46,9 @@ Page({
     this.lastUploadAt = 0
     this.locationTrackingStarted = false
     this.locationChangeHandler = null
+    this.testLocationTimer = null
+    this.testLocationState = null
+    this.testUploadRunning = false
 
     try {
       const me = await request('/api/driver/me')
@@ -67,6 +75,7 @@ Page({
   },
 
   onUnload() {
+    this.stopTestLocationSimulation()
     this.stopAutoUploadInternal(false)
     this.stopLocationTracking()
   },
@@ -83,6 +92,27 @@ Page({
     if (this.pendingUploadTimer) {
       clearTimeout(this.pendingUploadTimer)
       this.pendingUploadTimer = null
+    }
+  },
+
+  clearTestLocationTimer() {
+    if (this.testLocationTimer) {
+      clearInterval(this.testLocationTimer)
+      this.testLocationTimer = null
+    }
+  },
+
+  stopTestLocationSimulation(showToast = false, message = '') {
+    this.clearTestLocationTimer()
+    this.testLocationState = null
+    this.testUploadRunning = false
+
+    if (this.data.testing) {
+      this.setData({ testing: false })
+    }
+
+    if (showToast && message) {
+      wx.showToast({ title: message, icon: 'none' })
     }
   },
 
@@ -227,6 +257,26 @@ Page({
       latitude: res.latitude,
       longitude: res.longitude,
       speed: typeof res.speed === 'number' && res.speed > 0 ? res.speed : 0
+    }
+  },
+
+  buildTestLocation(advance = false) {
+    if (!this.testLocationState) {
+      this.testLocationState = {
+        latitude: TEST_START_LATITUDE,
+        longitude: TEST_START_LONGITUDE
+      }
+    } else if (advance) {
+      this.testLocationState = {
+        latitude: Number((this.testLocationState.latitude + TEST_LOCATION_STEP).toFixed(14)),
+        longitude: Number((this.testLocationState.longitude + TEST_LOCATION_STEP).toFixed(14))
+      }
+    }
+
+    return {
+      latitude: this.testLocationState.latitude,
+      longitude: this.testLocationState.longitude,
+      speed: 0
     }
   },
 
@@ -380,6 +430,8 @@ Page({
   },
 
   async enableAutoUpload({ showUploadToast = true } = {}) {
+    this.stopTestLocationSimulation()
+
     const trackingReady = await this.startLocationTracking()
     if (!trackingReady) {
       return false
@@ -415,6 +467,7 @@ Page({
 
   async startTrip() {
     try {
+      this.stopTestLocationSimulation()
       await request('/api/driver/start', 'POST', {})
       this.setData({ tripStatus: TRIP_STATUS_RUNNING })
       const autoUploadReady = await this.enableAutoUpload({ showUploadToast: false })
@@ -429,6 +482,7 @@ Page({
 
   async finishTrip({ logoutAfterStop = false } = {}) {
     try {
+      this.stopTestLocationSimulation()
       await request('/api/driver/stop', 'POST', {})
       this.stopAutoUploadInternal(false)
       this.stopLocationTracking()
@@ -455,6 +509,8 @@ Page({
   },
 
   async uploadOnce() {
+    this.stopTestLocationSimulation()
+
     const hasPermission = await this.ensureLocationPermission()
     if (!hasPermission) {
       wx.showToast({ title: '未开启定位权限', icon: 'none' })
@@ -484,6 +540,51 @@ Page({
     }
 
     await this.enableAutoUpload({ showUploadToast: true })
+  },
+
+  async toggleTestLocation() {
+    if (this.data.testing) {
+      this.stopTestLocationSimulation(true, '测试已停止')
+      return
+    }
+
+    this.stopAutoUploadInternal(false)
+    this.stopLocationTracking()
+    this.testLocationState = null
+
+    const firstLocation = this.buildTestLocation(false)
+    this.latestLocation = firstLocation
+    this.updateLocationPanel(firstLocation)
+    this.setData({ testing: true })
+
+    const firstUploadSuccess = await this.uploadLocation(firstLocation, true)
+    if (!firstUploadSuccess) {
+      this.stopTestLocationSimulation()
+      return
+    }
+
+    this.testLocationTimer = setInterval(async () => {
+      if (!this.data.testing || this.testUploadRunning) {
+        return
+      }
+
+      this.testUploadRunning = true
+
+      try {
+        const nextLocation = this.buildTestLocation(true)
+        this.latestLocation = nextLocation
+        this.updateLocationPanel(nextLocation)
+
+        const success = await this.uploadLocation(nextLocation, true)
+        if (!success) {
+          this.stopTestLocationSimulation(true, '测试已停止')
+        }
+      } finally {
+        this.testUploadRunning = false
+      }
+    }, TEST_LOCATION_INTERVAL_MS)
+
+    wx.showToast({ title: '测试已开始', icon: 'success' })
   },
 
   enqueueUpload(location, force, silent) {

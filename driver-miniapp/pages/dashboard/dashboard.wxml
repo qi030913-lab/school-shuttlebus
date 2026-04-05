@@ -14,6 +14,7 @@
       <button type="primary" bindtap="startTrip">开始发车</button>
       <button bindtap="uploadOnce">上传一次位置</button>
       <button bindtap="toggleAutoUpload">{{autoUpload ? '停止自动上传' : '开启自动上传'}}</button>
+      <button bindtap="toggleTestLocation">{{testing ? '停止测试' : '开始测试'}}</button>
       <button type="warn" bindtap="stopTrip">结束发车</button>
       <button bindtap="logout">退出登录</button>
     </view>
