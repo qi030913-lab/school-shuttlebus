@@ -11,6 +11,8 @@ const VEHICLE_MARKER_ICON = '/assets/bus-marker.png'
 const USER_MARKER_ICON = '/assets/user-marker.png'
 const USER_MARKER_ID = 1000000001
 const VEHICLE_MARKER_ID_MOD = 1000000000
+const VEHICLE_MARKER_ANIMATION_DURATION_MS = 800
+const VEHICLE_MARKER_ANIMATION_STEP_MS = 80
 const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
 const SOCKET_RETRY_MAX_MS = 15000
@@ -144,6 +146,7 @@ Page({
     this.socketReconnectTimer = null
     this.socketClosedByUser = false
     this.socketRetryCount = 0
+    this.vehicleMarkerAnimationTimer = null
     this.shouldResetMapCenter = true
     this.userLocation = null
     this.latestVehiclesRaw = []
@@ -165,6 +168,7 @@ Page({
   },
 
   onUnload() {
+    this.clearVehicleMarkerAnimation()
     if (this.pollTimer) {
       clearInterval(this.pollTimer)
       this.pollTimer = null
@@ -610,6 +614,115 @@ Page({
     return true
   },
 
+  clearVehicleMarkerAnimation() {
+    if (this.vehicleMarkerAnimationTimer) {
+      clearTimeout(this.vehicleMarkerAnimationTimer)
+      this.vehicleMarkerAnimationTimer = null
+    }
+  },
+
+  updateAnimatedVehicleMarkers(vehicleMarkers) {
+    const userMarkers = (Array.isArray(this.data.markers) ? this.data.markers : [])
+      .filter(marker => marker && marker.id === USER_MARKER_ID)
+    const markers = userMarkers.length ? [...vehicleMarkers, ...userMarkers] : vehicleMarkers
+    this.setData({ markers })
+  },
+
+  animateVehicleMarkers(previousMarkers, nextVehicleMarkers) {
+    this.clearVehicleMarkerAnimation()
+
+    if (!previousMarkers.length || !nextVehicleMarkers.length) {
+      this.updateAnimatedVehicleMarkers(nextVehicleMarkers)
+      return
+    }
+
+    const previousMarkerMap = {}
+    previousMarkers.forEach((marker) => {
+      if (marker && marker.id !== USER_MARKER_ID) {
+        previousMarkerMap[marker.id] = marker
+      }
+    })
+
+    const animationFrames = Math.max(1, Math.round(
+      VEHICLE_MARKER_ANIMATION_DURATION_MS / VEHICLE_MARKER_ANIMATION_STEP_MS
+    ))
+
+    let frameIndex = 0
+    const runFrame = () => {
+      frameIndex += 1
+      const progress = Math.min(1, frameIndex / animationFrames)
+      const frameMarkers = nextVehicleMarkers.map((marker) => {
+        const previousMarker = previousMarkerMap[marker.id]
+        if (!previousMarker) {
+          return marker
+        }
+
+        return {
+          ...marker,
+          latitude: previousMarker.latitude + (marker.latitude - previousMarker.latitude) * progress,
+          longitude: previousMarker.longitude + (marker.longitude - previousMarker.longitude) * progress,
+          rotation: (previousMarker.rotation || 0) + this.getAngleDelta(
+            previousMarker.rotation || 0,
+            marker.rotation || 0
+          ) * progress,
+          rotate: (previousMarker.rotate || 0) + this.getAngleDelta(
+            previousMarker.rotate || 0,
+            marker.rotate || 0
+          ) * progress
+        }
+      })
+
+      this.updateAnimatedVehicleMarkers(frameMarkers)
+
+      if (progress < 1) {
+        this.vehicleMarkerAnimationTimer = setTimeout(runFrame, VEHICLE_MARKER_ANIMATION_STEP_MS)
+      } else {
+        this.vehicleMarkerAnimationTimer = null
+      }
+    }
+
+    runFrame()
+  },
+
+  getAngleDelta(fromAngle, toAngle) {
+    let delta = (toAngle - fromAngle) % 360
+    if (delta > 180) {
+      delta -= 360
+    }
+    if (delta < -180) {
+      delta += 360
+    }
+    return delta
+  },
+
+  buildVehicleAnimationStartMarkers(previousMarkers, nextVehicleMarkers) {
+    if (!previousMarkers.length) {
+      return nextVehicleMarkers
+    }
+
+    const previousMarkerMap = {}
+    previousMarkers.forEach((marker) => {
+      if (marker) {
+        previousMarkerMap[marker.id] = marker
+      }
+    })
+
+    return nextVehicleMarkers.map((marker) => {
+      const previousMarker = previousMarkerMap[marker.id]
+      if (!previousMarker) {
+        return marker
+      }
+
+      return {
+        ...marker,
+        latitude: previousMarker.latitude,
+        longitude: previousMarker.longitude,
+        rotation: previousMarker.rotation || 0,
+        rotate: previousMarker.rotate || 0
+      }
+    })
+  },
+
   applyVehicles(vehicles) {
     this.latestVehiclesRaw = this.dedupeVehiclesById(vehicles)
     const receivedAt = Date.now()
@@ -625,9 +738,12 @@ Page({
       }
     })
     const decoratedVehicles = this.latestVehiclesRaw.map(item => this.decorateVehicle(item, receivedAt))
+    const previousVehicleMarkers = (Array.isArray(this.data.markers) ? this.data.markers : [])
+      .filter(marker => marker && marker.id !== USER_MARKER_ID)
     const vehicleMarkers = this.buildVehicleMarkers(decoratedVehicles)
     const userMarker = this.buildUserMarker()
-    const markers = userMarker ? [...vehicleMarkers, userMarker] : vehicleMarkers
+    const startVehicleMarkers = this.buildVehicleAnimationStartMarkers(previousVehicleMarkers, vehicleMarkers)
+    const markers = userMarker ? [...startVehicleMarkers, userMarker] : startVehicleMarkers
     const distanceLines = this.buildDistanceLines(decoratedVehicles)
 
     const nextState = {
@@ -645,6 +761,7 @@ Page({
     }
 
     this.setData(nextState)
+    this.animateVehicleMarkers(previousVehicleMarkers, vehicleMarkers)
   },
 
   buildUserMarker() {
@@ -775,6 +892,8 @@ Page({
     return clusters.map((cluster, index) => {
       const clusterStatus = this.getClusterStatus(cluster.items)
       const badgeConfig = this.buildVehicleMarkerBadge(cluster.items, clusterStatus)
+      const primaryVehicle = cluster.items[0]
+      const heading = typeof primaryVehicle.heading === 'number' ? primaryVehicle.heading : 0
 
       return {
         id: this.buildVehicleMarkerId(cluster.items),
@@ -783,6 +902,8 @@ Page({
         iconPath: VEHICLE_MARKER_ICON,
         width: cluster.items.length > 1 ? 38 : 34,
         height: cluster.items.length > 1 ? 38 : 34,
+        rotation: heading,
+        rotate: heading,
         anchor: {
           x: 0.5,
           y: 0.7
@@ -814,6 +935,30 @@ Page({
     return `${items[0].vehicleId} 等${items.length}辆`
   },
 
+  computeVehicleHeading(previousMotion, latitude, longitude) {
+    if (
+      !previousMotion
+      || previousMotion.latitude === null
+      || previousMotion.longitude === null
+      || latitude === null
+      || longitude === null
+      || (previousMotion.latitude === latitude && previousMotion.longitude === longitude)
+    ) {
+      return previousMotion && typeof previousMotion.heading === 'number'
+        ? previousMotion.heading
+        : 0
+    }
+
+    const startLatitude = previousMotion.latitude * Math.PI / 180
+    const endLatitude = latitude * Math.PI / 180
+    const deltaLongitude = (longitude - previousMotion.longitude) * Math.PI / 180
+    const y = Math.sin(deltaLongitude) * Math.cos(endLatitude)
+    const x = Math.cos(startLatitude) * Math.sin(endLatitude)
+      - Math.sin(startLatitude) * Math.cos(endLatitude) * Math.cos(deltaLongitude)
+    const bearing = Math.atan2(y, x) * 180 / Math.PI
+    return (bearing + 360) % 360
+  },
+
   decorateVehicle(item, receivedAt = Date.now()) {
     const { latitude, longitude } = this.normalizeCoordinatePair(item.latitude, item.longitude)
     const previousMotion = this.vehicleMotionMap[item.vehicleId] || null
@@ -824,12 +969,14 @@ Page({
       updateTime: item.updateTime,
       status: item.status
     }, previousMotion, receivedAt)
+    const heading = this.computeVehicleHeading(previousMotion, latitude, longitude)
     this.vehicleMotionMap[item.vehicleId] = buildVehicleMotionSnapshot(
       item,
       latitude,
       longitude,
       speed,
-      receivedAt
+      receivedAt,
+      heading
     )
     const distanceMeters = this.userLocation && latitude !== null && longitude !== null
       ? calculateDistanceMeters(
@@ -844,6 +991,7 @@ Page({
       ...item,
       latitude,
       longitude,
+      heading,
       status: item.status || 'UNKNOWN',
       distanceText: distanceMeters === null ? '未开启用户定位' : `距离你 ${this.formatDistance(distanceMeters)}`,
       speedText: `${Number(speed || 0).toFixed(1)} m/s`,

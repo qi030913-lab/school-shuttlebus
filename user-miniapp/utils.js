@@ -183,7 +183,7 @@ function resolveVehicleCurrentSpeed(current, previousSample, receivedAt = Date.n
   return 0
 }
 
-function buildVehicleMotionSnapshot(item, latitude, longitude, speed, receivedAt = Date.now()) {
+function buildVehicleMotionSnapshot(item, latitude, longitude, speed, receivedAt = Date.now(), heading = 0) {
   const hasLocation = hasValidCoordinatePair(latitude, longitude)
   const parsedTimestamp = parseUpdateTimeToTimestamp(item && item.updateTime)
 
@@ -191,7 +191,8 @@ function buildVehicleMotionSnapshot(item, latitude, longitude, speed, receivedAt
     latitude: hasLocation ? latitude : null,
     longitude: hasLocation ? longitude : null,
     speed: normalizeNonNegativeNumber(speed),
-    timestamp: parsedTimestamp !== null ? parsedTimestamp : receivedAt
+    timestamp: parsedTimestamp !== null ? parsedTimestamp : receivedAt,
+    heading: Number.isFinite(Number(heading)) ? Number(heading) : 0
   }
 }
 
