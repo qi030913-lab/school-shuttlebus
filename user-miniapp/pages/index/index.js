@@ -1,4 +1,10 @@
-const { request, WS_URL } = require('../../utils')
+const {
+  request,
+  WS_URL,
+  calculateDistanceMeters,
+  resolveVehicleCurrentSpeed,
+  buildVehicleMotionSnapshot
+} = require('../../utils')
 
 const VEHICLE_MARKER_ICON = '/assets/bus-marker.png'
 const USER_MARKER_ICON = '/assets/user-marker.png'
@@ -134,6 +140,7 @@ Page({
     this.shouldResetMapCenter = true
     this.userLocation = null
     this.latestVehiclesRaw = []
+    this.vehicleMotionMap = {}
     this.locationPollTimer = null
     this.runtimeInfo = this.getRuntimeInfo()
 
@@ -165,6 +172,7 @@ Page({
       this.socketTask.close()
       this.socketTask = null
     }
+    this.vehicleMotionMap = {}
   },
 
   startLocationPolling() {
@@ -536,7 +544,8 @@ Page({
 
   applyVehicles(vehicles) {
     this.latestVehiclesRaw = Array.isArray(vehicles) ? vehicles : []
-    const decoratedVehicles = this.latestVehiclesRaw.map(item => this.decorateVehicle(item))
+    const receivedAt = Date.now()
+    const decoratedVehicles = this.latestVehiclesRaw.map(item => this.decorateVehicle(item, receivedAt))
     const vehicleMarkers = this.buildVehicleMarkers(decoratedVehicles)
     const userMarker = this.buildUserMarker()
     const markers = userMarker ? [...vehicleMarkers, userMarker] : vehicleMarkers
@@ -683,23 +692,25 @@ Page({
     return `${items[0].vehicleId} 等${items.length}辆`
   },
 
-  calculateDistanceMeters(lat1, lng1, lat2, lng2) {
-    const toRadians = degree => (degree * Math.PI) / 180
-    const earthRadius = 6371000
-    const dLat = toRadians(lat2 - lat1)
-    const dLng = toRadians(lng2 - lng1)
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
-      + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2))
-      * Math.sin(dLng / 2) * Math.sin(dLng / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return earthRadius * c
-  },
-
-  decorateVehicle(item) {
+  decorateVehicle(item, receivedAt = Date.now()) {
     const { latitude, longitude } = this.normalizeCoordinatePair(item.latitude, item.longitude)
-    const speed = typeof item.speed === 'number' ? item.speed : 0
+    const previousMotion = this.vehicleMotionMap[item.vehicleId] || null
+    const speed = resolveVehicleCurrentSpeed({
+      latitude,
+      longitude,
+      speed: item.speed,
+      updateTime: item.updateTime,
+      status: item.status
+    }, previousMotion, receivedAt)
+    this.vehicleMotionMap[item.vehicleId] = buildVehicleMotionSnapshot(
+      item,
+      latitude,
+      longitude,
+      speed,
+      receivedAt
+    )
     const distanceMeters = this.userLocation && latitude !== null && longitude !== null
-      ? this.calculateDistanceMeters(
+      ? calculateDistanceMeters(
         this.userLocation.latitude,
         this.userLocation.longitude,
         latitude,

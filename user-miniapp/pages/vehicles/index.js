@@ -1,4 +1,9 @@
-const { request, WS_URL } = require('../../utils')
+const {
+  request,
+  WS_URL,
+  resolveVehicleCurrentSpeed,
+  buildVehicleMotionSnapshot
+} = require('../../utils')
 
 const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
@@ -28,6 +33,7 @@ Page({
     this.socketReconnectTimer = null
     this.socketClosedByUser = false
     this.socketRetryCount = 0
+    this.vehicleMotionMap = {}
 
     const routeId = decodeURIComponent(options.routeId || '')
     const routeName = decodeURIComponent(options.routeName || '')
@@ -77,6 +83,7 @@ Page({
       this.socketTask.close()
       this.socketTask = null
     }
+    this.vehicleMotionMap = {}
   },
 
   setSocketStatus(status) {
@@ -229,7 +236,8 @@ Page({
   },
 
   applyVehicles(vehicles, fromSocket) {
-    const decoratedVehicles = vehicles.map(item => this.decorateVehicle(item))
+    const receivedAt = Date.now()
+    const decoratedVehicles = vehicles.map(item => this.decorateVehicle(item, receivedAt))
     this.setData({
       vehicles: decoratedVehicles,
       liveVehicleCount: decoratedVehicles.length,
@@ -238,9 +246,23 @@ Page({
     })
   },
 
-  decorateVehicle(item) {
+  decorateVehicle(item, receivedAt = Date.now()) {
     const { latitude, longitude } = this.normalizeCoordinatePair(item.latitude, item.longitude)
-    const speed = typeof item.speed === 'number' ? item.speed : 0
+    const previousMotion = this.vehicleMotionMap[item.vehicleId] || null
+    const speed = resolveVehicleCurrentSpeed({
+      latitude,
+      longitude,
+      speed: item.speed,
+      updateTime: item.updateTime,
+      status: item.status
+    }, previousMotion, receivedAt)
+    this.vehicleMotionMap[item.vehicleId] = buildVehicleMotionSnapshot(
+      item,
+      latitude,
+      longitude,
+      speed,
+      receivedAt
+    )
     const status = item.status || 'UNKNOWN'
     const statusTextMap = {
       RUNNING: '运行中',
