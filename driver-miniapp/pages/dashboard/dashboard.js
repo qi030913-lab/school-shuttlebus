@@ -1,10 +1,21 @@
 const { request } = require('../../utils')
 
 const UPLOAD_THROTTLE_MS = 5000
-const TEST_START_LATITUDE = 36.239980176264595
-const TEST_START_LONGITUDE = 117.28365907055604
-const TEST_LOCATION_STEP = 0.0001
+const TEST_START_LATITUDE = 36.2423104052041
+const TEST_START_LONGITUDE = 117.28271074734232
+const TEST_TARGET_LATITUDE = 36.245052820456635
+const TEST_TARGET_LONGITUDE = 117.28756910282573
+const TEST_LOCATION_MAX_DELTA = 0.00001
 const TEST_LOCATION_INTERVAL_MS = 1000
+const TEST_LOCATION_STEP_COUNT = Math.max(
+  1,
+  Math.ceil(
+    Math.max(
+      Math.abs(TEST_TARGET_LATITUDE - TEST_START_LATITUDE),
+      Math.abs(TEST_TARGET_LONGITUDE - TEST_START_LONGITUDE)
+    ) / TEST_LOCATION_MAX_DELTA
+  )
+)
 const TRIP_STATUS_IDLE = '未发车'
 const TRIP_STATUS_RUNNING = '运行中'
 const TRIP_STATUS_STOPPED = '已结束'
@@ -260,24 +271,35 @@ Page({
     }
   },
 
+  getTestLocationByStep(stepIndex) {
+    const progress = TEST_LOCATION_STEP_COUNT === 0 ? 1 : stepIndex / TEST_LOCATION_STEP_COUNT
+    return {
+      latitude: Number(
+        (TEST_START_LATITUDE + (TEST_TARGET_LATITUDE - TEST_START_LATITUDE) * progress).toFixed(14)
+      ),
+      longitude: Number(
+        (TEST_START_LONGITUDE + (TEST_TARGET_LONGITUDE - TEST_START_LONGITUDE) * progress).toFixed(14)
+      ),
+      speed: 0
+    }
+  },
+
   buildTestLocation(advance = false) {
     if (!this.testLocationState) {
       this.testLocationState = {
-        latitude: TEST_START_LATITUDE,
-        longitude: TEST_START_LONGITUDE
+        currentStep: 0
       }
-    } else if (advance) {
+    } else if (advance && this.testLocationState.currentStep < TEST_LOCATION_STEP_COUNT) {
       this.testLocationState = {
-        latitude: Number((this.testLocationState.latitude + TEST_LOCATION_STEP).toFixed(14)),
-        longitude: Number((this.testLocationState.longitude + TEST_LOCATION_STEP).toFixed(14))
+        currentStep: this.testLocationState.currentStep + 1
       }
     }
 
-    return {
-      latitude: this.testLocationState.latitude,
-      longitude: this.testLocationState.longitude,
-      speed: 0
-    }
+    return this.getTestLocationByStep(this.testLocationState.currentStep)
+  },
+
+  hasReachedTestTarget() {
+    return !!this.testLocationState && this.testLocationState.currentStep >= TEST_LOCATION_STEP_COUNT
   },
 
   updateLocationPanel(location) {
@@ -542,6 +564,51 @@ Page({
     await this.enableAutoUpload({ showUploadToast: true })
   },
 
+  async toggleTestLocationLegacy() {
+    if (this.data.testing) {
+      this.stopTestLocationSimulation(true, '测试已停止')
+      return
+    }
+
+    this.stopAutoUploadInternal(false)
+    this.stopLocationTracking()
+    this.testLocationState = null
+
+    const firstLocation = this.buildTestLocation(false)
+    this.latestLocation = firstLocation
+    this.updateLocationPanel(firstLocation)
+    this.setData({ testing: true })
+
+    const firstUploadSuccess = await this.uploadLocation(firstLocation, true)
+    if (!firstUploadSuccess) {
+      this.stopTestLocationSimulation()
+      return
+    }
+
+    this.testLocationTimer = setInterval(async () => {
+      if (!this.data.testing || this.testUploadRunning) {
+        return
+      }
+
+      this.testUploadRunning = true
+
+      try {
+        const nextLocation = this.buildTestLocation(true)
+        this.latestLocation = nextLocation
+        this.updateLocationPanel(nextLocation)
+
+        const success = await this.uploadLocation(nextLocation, true)
+        if (!success) {
+          this.stopTestLocationSimulation(true, '测试已停止')
+        }
+      } finally {
+        this.testUploadRunning = false
+      }
+    }, TEST_LOCATION_INTERVAL_MS)
+
+    wx.showToast({ title: '测试已开始', icon: 'success' })
+  },
+
   async toggleTestLocation() {
     if (this.data.testing) {
       this.stopTestLocationSimulation(true, '测试已停止')
@@ -578,6 +645,11 @@ Page({
         const success = await this.uploadLocation(nextLocation, true)
         if (!success) {
           this.stopTestLocationSimulation(true, '测试已停止')
+          return
+        }
+
+        if (this.hasReachedTestTarget()) {
+          this.stopTestLocationSimulation(true, '已到达测试目标点')
         }
       } finally {
         this.testUploadRunning = false
