@@ -545,6 +545,17 @@ Page({
   applyVehicles(vehicles) {
     this.latestVehiclesRaw = Array.isArray(vehicles) ? vehicles : []
     const receivedAt = Date.now()
+    const nextVehicleIds = {}
+    this.latestVehiclesRaw.forEach((item) => {
+      if (item && item.vehicleId) {
+        nextVehicleIds[item.vehicleId] = true
+      }
+    })
+    Object.keys(this.vehicleMotionMap).forEach((vehicleId) => {
+      if (!nextVehicleIds[vehicleId]) {
+        delete this.vehicleMotionMap[vehicleId]
+      }
+    })
     const decoratedVehicles = this.latestVehiclesRaw.map(item => this.decorateVehicle(item, receivedAt))
     const vehicleMarkers = this.buildVehicleMarkers(decoratedVehicles)
     const userMarker = this.buildUserMarker()

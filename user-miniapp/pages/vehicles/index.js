@@ -237,6 +237,17 @@ Page({
 
   applyVehicles(vehicles, fromSocket) {
     const receivedAt = Date.now()
+    const nextVehicleIds = {}
+    vehicles.forEach((item) => {
+      if (item && item.vehicleId) {
+        nextVehicleIds[item.vehicleId] = true
+      }
+    })
+    Object.keys(this.vehicleMotionMap).forEach((vehicleId) => {
+      if (!nextVehicleIds[vehicleId]) {
+        delete this.vehicleMotionMap[vehicleId]
+      }
+    })
     const decoratedVehicles = vehicles.map(item => this.decorateVehicle(item, receivedAt))
     this.setData({
       vehicles: decoratedVehicles,

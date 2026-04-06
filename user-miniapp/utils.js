@@ -1,6 +1,8 @@
 const BASE_URL = 'https://gps.hiwcq.com'
 const WS_URL = 'wss://gps.hiwcq.com/ws/vehicles'
 const MAX_SPEED_SAMPLE_AGE_MS = 30000
+const MIN_SPEED_SAMPLE_DELTA_MS = 800
+const MAX_REASONABLE_VEHICLE_SPEED_MPS = 55
 
 function request(url, method = 'GET', data = {}) {
   return new Promise((resolve, reject) => {
@@ -60,7 +62,10 @@ function parseUpdateTimeToTimestamp(value) {
   }
 
   if (Array.isArray(value) && value.length >= 6) {
-    const [year, month, day, hour, minute, second, millisecond = 0] = value.map(Number)
+    const parts = value.map(Number)
+    const [year, month, day, hour, minute, second] = parts
+    const fraction = Number.isFinite(parts[6]) ? parts[6] : 0
+    const millisecond = fraction > 999 ? Math.floor(fraction / 1000000) : fraction
     if (
       Number.isFinite(year)
       && Number.isFinite(month)
@@ -142,9 +147,13 @@ function resolveVehicleCurrentSpeed(current, previousSample, receivedAt = Date.n
       && currentLatitude === previousLatitude
       && currentLongitude === previousLongitude
 
+    if (sameCoordinate) {
+      return 0
+    }
+
     if (currentHasLocation && previousHasLocation && currentTimestamp !== null && previousTimestamp !== null) {
       const deltaMs = currentTimestamp - previousTimestamp
-      if (deltaMs > 0 && deltaMs <= MAX_SPEED_SAMPLE_AGE_MS) {
+      if (deltaMs >= MIN_SPEED_SAMPLE_DELTA_MS && deltaMs <= MAX_SPEED_SAMPLE_AGE_MS) {
         const distance = calculateDistanceMeters(
           previousLatitude,
           previousLongitude,
@@ -152,22 +161,26 @@ function resolveVehicleCurrentSpeed(current, previousSample, receivedAt = Date.n
           currentLongitude
         )
         const derivedSpeed = distance / (deltaMs / 1000)
-        if (Number.isFinite(derivedSpeed)) {
+        if (
+          Number.isFinite(derivedSpeed)
+          && derivedSpeed >= 0
+          && derivedSpeed <= MAX_REASONABLE_VEHICLE_SPEED_MPS
+        ) {
           return derivedSpeed
         }
       }
 
-      if (deltaMs <= 0 && previousSpeed !== null) {
+      if (deltaMs <= 0 && previousSpeed !== null && previousSpeed <= MAX_REASONABLE_VEHICLE_SPEED_MPS) {
         return previousSpeed
       }
     }
-
-    if (sameCoordinate && previousSpeed !== null) {
-      return previousSpeed
-    }
   }
 
-  return reportedSpeed !== null ? reportedSpeed : 0
+  if (reportedSpeed !== null && reportedSpeed <= MAX_REASONABLE_VEHICLE_SPEED_MPS) {
+    return reportedSpeed
+  }
+
+  return 0
 }
 
 function buildVehicleMotionSnapshot(item, latitude, longitude, speed, receivedAt = Date.now()) {
