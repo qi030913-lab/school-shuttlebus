@@ -2,12 +2,15 @@ const {
   request,
   WS_URL,
   calculateDistanceMeters,
+  parseUpdateTimeToTimestamp,
   resolveVehicleCurrentSpeed,
   buildVehicleMotionSnapshot
 } = require('../../utils')
 
 const VEHICLE_MARKER_ICON = '/assets/bus-marker.png'
 const USER_MARKER_ICON = '/assets/user-marker.png'
+const USER_MARKER_ID = 1000000001
+const VEHICLE_MARKER_ID_MOD = 1000000000
 const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
 const SOCKET_RETRY_MAX_MS = 15000
@@ -64,6 +67,10 @@ Page({
 
   isDevtoolsPlatform() {
     return !!(this.runtimeInfo && this.runtimeInfo.platform === 'devtools')
+  },
+
+  isAndroidPlatform() {
+    return !!(this.runtimeInfo && this.runtimeInfo.platform === 'android')
   },
 
   getInvalidLocationFeedback(error) {
@@ -542,8 +549,69 @@ Page({
     this.applyVehicles(vehicles)
   },
 
+  dedupeVehiclesById(vehicles) {
+    const list = Array.isArray(vehicles) ? vehicles : []
+    const deduped = []
+    const indexMap = {}
+
+    list.forEach((item, index) => {
+      if (!item || !item.vehicleId) {
+        deduped.push(item)
+        return
+      }
+
+      const key = String(item.vehicleId)
+      const existingIndex = indexMap[key]
+      if (existingIndex === undefined) {
+        indexMap[key] = deduped.length
+        deduped.push(item)
+        return
+      }
+
+      if (this.shouldReplaceVehicleRecord(deduped[existingIndex], item, index)) {
+        deduped[existingIndex] = item
+      }
+    })
+
+    return deduped.filter(Boolean)
+  },
+
+  shouldReplaceVehicleRecord(currentItem, nextItem) {
+    const currentUpdateAt = parseUpdateTimeToTimestamp(currentItem && currentItem.updateTime)
+    const nextUpdateAt = parseUpdateTimeToTimestamp(nextItem && nextItem.updateTime)
+
+    if (currentUpdateAt !== null && nextUpdateAt !== null && currentUpdateAt !== nextUpdateAt) {
+      return nextUpdateAt > currentUpdateAt
+    }
+
+    if (currentUpdateAt === null && nextUpdateAt !== null) {
+      return true
+    }
+
+    if (currentUpdateAt !== null && nextUpdateAt === null) {
+      return false
+    }
+
+    const currentLocation = this.normalizeCoordinatePair(
+      currentItem && currentItem.latitude,
+      currentItem && currentItem.longitude
+    )
+    const nextLocation = this.normalizeCoordinatePair(
+      nextItem && nextItem.latitude,
+      nextItem && nextItem.longitude
+    )
+    const currentHasLocation = currentLocation.latitude !== null && currentLocation.longitude !== null
+    const nextHasLocation = nextLocation.latitude !== null && nextLocation.longitude !== null
+
+    if (currentHasLocation !== nextHasLocation) {
+      return nextHasLocation
+    }
+
+    return true
+  },
+
   applyVehicles(vehicles) {
-    this.latestVehiclesRaw = Array.isArray(vehicles) ? vehicles : []
+    this.latestVehiclesRaw = this.dedupeVehiclesById(vehicles)
     const receivedAt = Date.now()
     const nextVehicleIds = {}
     this.latestVehiclesRaw.forEach((item) => {
@@ -585,7 +653,7 @@ Page({
     }
 
     return {
-      id: 999999,
+      id: USER_MARKER_ID,
       latitude: this.userLocation.latitude,
       longitude: this.userLocation.longitude,
       iconPath: USER_MARKER_ICON,
@@ -633,6 +701,58 @@ Page({
       }))
   },
 
+  buildVehicleMarkerId(items) {
+    const seed = items
+      .map(item => item.vehicleId || '')
+      .filter(Boolean)
+      .sort()
+      .join('|') || 'vehicle-marker'
+
+    let hash = 0
+    for (let i = 0; i < seed.length; i += 1) {
+      hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0
+    }
+
+    return (Math.abs(hash) % VEHICLE_MARKER_ID_MOD) + 1
+  },
+
+  buildVehicleMarkerBadge(items, clusterStatus) {
+    const content = this.buildVehicleMarkerLabel(items)
+    const bgColor = clusterStatus === 'RUNNING' ? '#0f766e' : '#9aa8b4'
+
+    if (this.isAndroidPlatform()) {
+      return {
+        label: {
+          content,
+          color: '#ffffff',
+          fontSize: 12,
+          padding: 6,
+          borderRadius: 16,
+          bgColor,
+          borderColor: bgColor,
+          borderWidth: 1,
+          textAlign: 'center',
+          anchorX: 0,
+          anchorY: -42
+        }
+      }
+    }
+
+    return {
+      callout: {
+        content,
+        display: 'ALWAYS',
+        fontSize: 12,
+        padding: 6,
+        borderRadius: 16,
+        color: '#ffffff',
+        bgColor,
+        borderColor: bgColor,
+        borderWidth: 1
+      }
+    }
+  },
+
   buildVehicleMarkers(vehicles) {
     const clusters = []
 
@@ -654,30 +774,21 @@ Page({
 
     return clusters.map((cluster, index) => {
       const clusterStatus = this.getClusterStatus(cluster.items)
+      const badgeConfig = this.buildVehicleMarkerBadge(cluster.items, clusterStatus)
 
       return {
-          id: index + 1,
-          latitude: cluster.latitude,
-          longitude: cluster.longitude,
-          iconPath: VEHICLE_MARKER_ICON,
-          width: cluster.items.length > 1 ? 38 : 34,
-          height: cluster.items.length > 1 ? 38 : 34,
-          anchor: {
-            x: 0.5,
-            y: 0.7
-          },
-          callout: {
-            content: this.buildVehicleMarkerLabel(cluster.items),
-            display: 'ALWAYS',
-            fontSize: 12,
-            padding: 6,
-            borderRadius: 16,
-            color: '#ffffff',
-            bgColor: clusterStatus === 'RUNNING' ? '#0f766e' : '#9aa8b4',
-            borderColor: clusterStatus === 'RUNNING' ? '#0f766e' : '#9aa8b4',
-            borderWidth: 1
-          }
-        }
+        id: this.buildVehicleMarkerId(cluster.items),
+        latitude: cluster.latitude,
+        longitude: cluster.longitude,
+        iconPath: VEHICLE_MARKER_ICON,
+        width: cluster.items.length > 1 ? 38 : 34,
+        height: cluster.items.length > 1 ? 38 : 34,
+        anchor: {
+          x: 0.5,
+          y: 0.7
+        },
+        ...badgeConfig
+      }
     })
   },
 
