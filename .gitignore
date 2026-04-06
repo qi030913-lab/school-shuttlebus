@@ -1,0 +1,5 @@
+# 忽略 IDEA 配置
+backend-springboot/.idea/
+
+# 忽略后端 Maven 编译目录
+backend-springboot/target/
