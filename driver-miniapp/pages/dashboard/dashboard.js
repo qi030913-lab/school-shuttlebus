@@ -16,6 +16,9 @@ const TEST_LOCATION_STEP_COUNT = Math.max(
     ) / TEST_LOCATION_MAX_DELTA
   )
 )
+const TEST_ROUTE_WAYPOINT_COUNT = 2
+const TEST_ROUTE_MIN_OFFSET_RATIO = 0.08
+const TEST_ROUTE_MAX_OFFSET_RATIO = 0.16
 const TRIP_STATUS_IDLE = '未发车'
 const TRIP_STATUS_RUNNING = '运行中'
 const TRIP_STATUS_STOPPED = '已结束'
@@ -271,35 +274,123 @@ Page({
     }
   },
 
-  getTestLocationByStep(stepIndex) {
-    const progress = TEST_LOCATION_STEP_COUNT === 0 ? 1 : stepIndex / TEST_LOCATION_STEP_COUNT
+  roundTestCoordinate(value) {
+    return Number(Number(value).toFixed(14))
+  },
+
+  createTestRoutePoint(latitude, longitude) {
     return {
-      latitude: Number(
-        (TEST_START_LATITUDE + (TEST_TARGET_LATITUDE - TEST_START_LATITUDE) * progress).toFixed(14)
-      ),
-      longitude: Number(
-        (TEST_START_LONGITUDE + (TEST_TARGET_LONGITUDE - TEST_START_LONGITUDE) * progress).toFixed(14)
-      ),
-      speed: 0
+      latitude: this.roundTestCoordinate(latitude),
+      longitude: this.roundTestCoordinate(longitude)
     }
+  },
+
+  randomBetween(min, max) {
+    return min + Math.random() * (max - min)
+  },
+
+  buildRandomTestRoutePoints() {
+    const startPoint = this.createTestRoutePoint(TEST_START_LATITUDE, TEST_START_LONGITUDE)
+    const targetPoint = this.createTestRoutePoint(TEST_TARGET_LATITUDE, TEST_TARGET_LONGITUDE)
+    const points = [startPoint]
+    const deltaLatitude = TEST_TARGET_LATITUDE - TEST_START_LATITUDE
+    const deltaLongitude = TEST_TARGET_LONGITUDE - TEST_START_LONGITUDE
+
+    for (let index = 1; index <= TEST_ROUTE_WAYPOINT_COUNT; index += 1) {
+      const progress = index / (TEST_ROUTE_WAYPOINT_COUNT + 1)
+      const baseLatitude = TEST_START_LATITUDE + deltaLatitude * progress
+      const baseLongitude = TEST_START_LONGITUDE + deltaLongitude * progress
+      const offsetRatio = this.randomBetween(TEST_ROUTE_MIN_OFFSET_RATIO, TEST_ROUTE_MAX_OFFSET_RATIO)
+      const direction = Math.random() > 0.5 ? 1 : -1
+      const latitudeOffset = deltaLongitude * offsetRatio * direction
+      const longitudeOffset = -deltaLatitude * offsetRatio * direction
+
+      points.push(this.createTestRoutePoint(
+        baseLatitude + latitudeOffset,
+        baseLongitude + longitudeOffset
+      ))
+    }
+
+    points.push(targetPoint)
+    return points
+  },
+
+  buildTestRouteLocations() {
+    const routePoints = this.buildRandomTestRoutePoints()
+    const routeLocations = []
+    const targetPoint = routePoints[routePoints.length - 1]
+
+    for (let index = 1; index < routePoints.length; index += 1) {
+      const startPoint = routePoints[index - 1]
+      const endPoint = routePoints[index]
+      const segmentStepCount = Math.max(
+        1,
+        Math.ceil(
+          Math.max(
+            Math.abs(endPoint.latitude - startPoint.latitude),
+            Math.abs(endPoint.longitude - startPoint.longitude)
+          ) / TEST_LOCATION_MAX_DELTA
+        )
+      )
+
+      for (let step = 0; step < segmentStepCount; step += 1) {
+        const progress = step / segmentStepCount
+        routeLocations.push({
+          latitude: this.roundTestCoordinate(
+            startPoint.latitude + (endPoint.latitude - startPoint.latitude) * progress
+          ),
+          longitude: this.roundTestCoordinate(
+            startPoint.longitude + (endPoint.longitude - startPoint.longitude) * progress
+          ),
+          speed: 0
+        })
+      }
+    }
+
+    routeLocations.push({
+      latitude: targetPoint.latitude,
+      longitude: targetPoint.longitude,
+      speed: 0
+    })
+
+    return routeLocations
+  },
+
+  getTestLocationByStep(stepIndex) {
+    if (!this.testLocationState || !Array.isArray(this.testLocationState.routeLocations)) {
+      this.testLocationState = {
+        routeLocations: this.buildTestRouteLocations(),
+        currentStep: 0
+      }
+    }
+
+    const safeIndex = Math.max(
+      0,
+      Math.min(stepIndex, this.testLocationState.routeLocations.length - 1)
+    )
+
+    return this.testLocationState.routeLocations[safeIndex]
   },
 
   buildTestLocation(advance = false) {
     if (!this.testLocationState) {
       this.testLocationState = {
+        routeLocations: this.buildTestRouteLocations(),
         currentStep: 0
       }
-    } else if (advance && this.testLocationState.currentStep < TEST_LOCATION_STEP_COUNT) {
+    } else if (advance && this.testLocationState.currentStep < this.testLocationState.routeLocations.length - 1) {
       this.testLocationState = {
+        ...this.testLocationState,
         currentStep: this.testLocationState.currentStep + 1
       }
     }
 
-    return this.getTestLocationByStep(this.testLocationState.currentStep)
+    return this.testLocationState.routeLocations[this.testLocationState.currentStep]
   },
 
   hasReachedTestTarget() {
-    return !!this.testLocationState && this.testLocationState.currentStep >= TEST_LOCATION_STEP_COUNT
+    return !!this.testLocationState
+      && this.testLocationState.currentStep >= this.testLocationState.routeLocations.length - 1
   },
 
   updateLocationPanel(location) {

@@ -725,15 +725,15 @@ Page({
         label: {
           content,
           color: '#ffffff',
-          fontSize: 12,
-          padding: 6,
-          borderRadius: 16,
+          fontSize: 10,
+          padding: 4,
+          borderRadius: 12,
           bgColor,
           borderColor: bgColor,
           borderWidth: 1,
           textAlign: 'center',
           anchorX: 0,
-          anchorY: -42
+          anchorY: -36
         }
       }
     }
@@ -742,9 +742,9 @@ Page({
       callout: {
         content,
         display: 'ALWAYS',
-        fontSize: 12,
-        padding: 6,
-        borderRadius: 16,
+        fontSize: 10,
+        padding: 4,
+        borderRadius: 12,
         color: '#ffffff',
         bgColor,
         borderColor: bgColor,
