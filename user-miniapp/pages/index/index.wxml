@@ -8,7 +8,7 @@
         <view class="route-showcase">
           <view class="route-showcase-main">
             <view class="route-showcase-icon-shell">
-              <image class="route-showcase-icon" src="/assets/bus-marker.png" mode="aspectFit"></image>
+              <image class="route-showcase-icon" src="/assets/logo-1024.png" mode="aspectFit"></image>
             </view>
             <view class="route-showcase-copy">
               <view class="route-showcase-title-box">
