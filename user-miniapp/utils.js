@@ -2,6 +2,7 @@ const BASE_URL = 'https://gps.hiwcq.com'
 const WS_URL = 'wss://gps.hiwcq.com/ws/vehicles'
 const MAX_SPEED_SAMPLE_AGE_MS = 30000
 const MIN_SPEED_SAMPLE_DELTA_MS = 800
+const MIN_MOVEMENT_DISTANCE_FOR_SPEED_METERS = 2
 const MAX_REASONABLE_VEHICLE_SPEED_MPS = 55
 
 function request(url, method = 'GET', data = {}) {
@@ -169,6 +170,9 @@ function resolveVehicleCurrentSpeed(current, previousSample, receivedAt = Date.n
           currentLatitude,
           currentLongitude
         )
+        if (distance < MIN_MOVEMENT_DISTANCE_FOR_SPEED_METERS) {
+          return 0
+        }
         const derivedSpeed = distance / (deltaMs / 1000)
         if (
           Number.isFinite(derivedSpeed)
@@ -192,13 +196,16 @@ function resolveVehicleCurrentSpeed(current, previousSample, receivedAt = Date.n
   return 0
 }
 
-function buildVehicleMotionSnapshot(item, latitude, longitude, speed, receivedAt = Date.now(), heading = 0) {
+function buildVehicleMotionSnapshot(item, latitude, longitude, speed, receivedAt = Date.now(), heading = 0, rawLatitude = latitude, rawLongitude = longitude) {
   const hasLocation = hasValidCoordinatePair(latitude, longitude)
+  const hasRawLocation = hasValidCoordinatePair(rawLatitude, rawLongitude)
   const parsedTimestamp = parseUpdateTimeToTimestamp(item && item.updateTime)
 
   return {
     latitude: hasLocation ? latitude : null,
     longitude: hasLocation ? longitude : null,
+    rawLatitude: hasRawLocation ? rawLatitude : null,
+    rawLongitude: hasRawLocation ? rawLongitude : null,
     speed: normalizeNonNegativeNumber(speed),
     timestamp: parsedTimestamp !== null ? parsedTimestamp : receivedAt,
     heading: Number.isFinite(Number(heading)) ? Number(heading) : 0

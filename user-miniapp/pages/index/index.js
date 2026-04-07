@@ -9,6 +9,7 @@ const {
 
 const VEHICLE_MARKER_ICON = '/assets/bus-marker.png'
 const USER_MARKER_ICON = '/assets/user-marker.png'
+const VEHICLE_MAP_ID = 'vehicleMap'
 const USER_MARKER_ID = 1000000001
 const VEHICLE_MARKER_ID_MOD = 1000000000
 const VEHICLE_MARKER_ANIMATION_DEFAULT_DURATION_MS = 900
@@ -16,8 +17,12 @@ const VEHICLE_MARKER_ANIMATION_MIN_DURATION_MS = 240
 const VEHICLE_MARKER_ANIMATION_MAX_DURATION_MS = 1800
 const VEHICLE_MARKER_ANIMATION_GAP_RATIO = 0.9
 const VEHICLE_MARKER_ANIMATION_STEP_MS = 33
+const VEHICLE_MARKER_SYNC_BUFFER_MS = 80
 const MARKER_COORDINATE_EPSILON = 0.0000001
-const MARKER_ANGLE_EPSILON = 0.1
+const MARKER_ANGLE_EPSILON = 2
+const MIN_VEHICLE_MARKER_MOVEMENT_DISTANCE_METERS = 3
+const MIN_STOPPED_VEHICLE_MARKER_MOVEMENT_DISTANCE_METERS = 8
+const MIN_VEHICLE_HEADING_UPDATE_DISTANCE_METERS = 5
 const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
 const SOCKET_RETRY_MAX_MS = 15000
@@ -147,14 +152,18 @@ Page({
   },
 
   async onLoad() {
+    this.mapContext = null
     this.socketTask = null
     this.socketReconnectTimer = null
     this.socketClosedByUser = false
     this.socketRetryCount = 0
     this.vehicleMarkerAnimationTimer = null
+    this.vehicleMarkerDataSyncTimer = null
+    this.vehicleMarkerDataSyncVersion = 0
     this.shouldResetMapCenter = true
     this.userLocation = null
     this.latestVehiclesRaw = []
+    this.vehicleMarkers = []
     this.vehicleMotionMap = {}
     this.lastVehicleMarkerChangeAt = 0
     this.locationPollTimer = null
@@ -173,8 +182,13 @@ Page({
     this.startLocationPolling()
   },
 
+  onReady() {
+    this.ensureMapContext()
+  },
+
   onUnload() {
     this.clearVehicleMarkerAnimation()
+    this.clearVehicleMarkerDataSyncTimer()
     if (this.pollTimer) {
       clearInterval(this.pollTimer)
       this.pollTimer = null
@@ -189,7 +203,23 @@ Page({
       this.socketTask.close()
       this.socketTask = null
     }
+    this.vehicleMarkers = []
     this.vehicleMotionMap = {}
+  },
+
+  ensureMapContext() {
+    if (this.mapContext || typeof wx.createMapContext !== 'function') {
+      return this.mapContext
+    }
+
+    try {
+      this.mapContext = wx.createMapContext(VEHICLE_MAP_ID, this)
+    } catch (error) {
+      this.logLocationDebug('wx.createMapContext.fail', this.toDebugError(error))
+      this.mapContext = null
+    }
+
+    return this.mapContext
   },
 
   startLocationPolling() {
@@ -533,7 +563,9 @@ Page({
       if (targetRouteId !== this.data.currentRouteId) {
         return
       }
-      this.applyOverview(overview)
+      const isBackgroundPoll = !shouldShowLoading && !routeId
+      const includeVehicles = !(isBackgroundPoll && this.socketStatus === 'connected')
+      this.applyOverview(overview, { includeVehicles })
     } catch (e) {
       wx.showToast({ title: '刷新失败', icon: 'none' })
     } finally {
@@ -543,7 +575,8 @@ Page({
     }
   },
 
-  applyOverview(overview) {
+  applyOverview(overview, options = {}) {
+    const { includeVehicles = true } = options
     const vehicles = Array.isArray(overview.vehicles) ? overview.vehicles : []
     const route = overview.route || {}
     const nextServiceTime = route.serviceTime || this.data.routeServiceTime
@@ -554,7 +587,9 @@ Page({
       routeProgressWidth: this.getRouteProgressWidth(nextServiceTime)
     })
 
-    this.applyVehicles(vehicles)
+    if (includeVehicles) {
+      this.applyVehicles(vehicles)
+    }
   },
 
   dedupeVehiclesById(vehicles) {
@@ -618,6 +653,44 @@ Page({
     return true
   },
 
+  buildVehicleDataMap(vehicles) {
+    const vehicleDataMap = {}
+    ;(Array.isArray(vehicles) ? vehicles : []).forEach((item) => {
+      if (item && item.vehicleId) {
+        vehicleDataMap[String(item.vehicleId)] = item
+      }
+    })
+    return vehicleDataMap
+  },
+
+  resolveIncomingVehicleRecords(vehicles) {
+    const previousVehicleDataMap = this.buildVehicleDataMap(this.data.vehicles)
+
+    return (Array.isArray(vehicles) ? vehicles : []).map((item) => {
+      if (!item || !item.vehicleId) {
+        return item
+      }
+
+      const previousMotion = this.vehicleMotionMap[item.vehicleId] || null
+      const previousVehicle = previousVehicleDataMap[String(item.vehicleId)] || null
+      const incomingUpdateAt = parseUpdateTimeToTimestamp(item.updateTime)
+      const previousUpdateAt = previousMotion && Number.isFinite(previousMotion.timestamp)
+        ? previousMotion.timestamp
+        : parseUpdateTimeToTimestamp(previousVehicle && previousVehicle.updateTime)
+
+      if (
+        incomingUpdateAt !== null
+        && previousUpdateAt !== null
+        && incomingUpdateAt < previousUpdateAt
+        && previousVehicle
+      ) {
+        return previousVehicle
+      }
+
+      return item
+    })
+  },
+
   clearVehicleMarkerAnimation() {
     if (this.vehicleMarkerAnimationTimer) {
       clearTimeout(this.vehicleMarkerAnimationTimer)
@@ -625,11 +698,46 @@ Page({
     }
   },
 
+  clearVehicleMarkerDataSyncTimer() {
+    if (this.vehicleMarkerDataSyncTimer) {
+      clearTimeout(this.vehicleMarkerDataSyncTimer)
+      this.vehicleMarkerDataSyncTimer = null
+    }
+  },
+
+  mergeVehicleAndUserMarkers(vehicleMarkers, userMarker = this.buildUserMarker()) {
+    const nextVehicleMarkers = Array.isArray(vehicleMarkers)
+      ? vehicleMarkers.filter(Boolean)
+      : []
+    return userMarker ? [...nextVehicleMarkers, userMarker] : nextVehicleMarkers
+  },
+
+  syncVehicleMarkersToData() {
+    this.setData({
+      markers: this.mergeVehicleAndUserMarkers(this.vehicleMarkers)
+    })
+  },
+
+  scheduleVehicleMarkerDataSync(delayMs = 0) {
+    this.clearVehicleMarkerDataSyncTimer()
+    const version = this.vehicleMarkerDataSyncVersion + 1
+    this.vehicleMarkerDataSyncVersion = version
+    const syncDelayMs = Math.max(0, Number(delayMs) || 0) + VEHICLE_MARKER_SYNC_BUFFER_MS
+
+    this.vehicleMarkerDataSyncTimer = setTimeout(() => {
+      if (this.vehicleMarkerDataSyncVersion !== version) {
+        return
+      }
+      this.vehicleMarkerDataSyncTimer = null
+      this.syncVehicleMarkersToData()
+    }, syncDelayMs)
+  },
+
   updateAnimatedVehicleMarkers(vehicleMarkers) {
-    const userMarkers = (Array.isArray(this.data.markers) ? this.data.markers : [])
-      .filter(marker => marker && marker.id === USER_MARKER_ID)
-    const markers = userMarkers.length ? [...vehicleMarkers, ...userMarkers] : vehicleMarkers
-    this.setData({ markers })
+    this.vehicleMarkers = Array.isArray(vehicleMarkers) ? vehicleMarkers : []
+    this.setData({
+      markers: this.mergeVehicleAndUserMarkers(this.vehicleMarkers)
+    })
   },
 
   animateVehicleMarkers(previousMarkers, nextVehicleMarkers, animationDurationMs = VEHICLE_MARKER_ANIMATION_DEFAULT_DURATION_MS) {
@@ -695,6 +803,92 @@ Page({
     this.vehicleMarkerAnimationTimer = setTimeout(runFrame, VEHICLE_MARKER_ANIMATION_STEP_MS)
   },
 
+  canUseNativeVehicleMarkerAnimation(previousMarkers, nextVehicleMarkers) {
+    if (!this.isAndroidPlatform()) {
+      return false
+    }
+
+    const mapContext = this.ensureMapContext()
+    if (!mapContext || typeof mapContext.translateMarker !== 'function') {
+      return false
+    }
+
+    if (!previousMarkers.length || previousMarkers.length !== nextVehicleMarkers.length) {
+      return false
+    }
+
+    const previousMarkerMap = {}
+    previousMarkers.forEach((marker) => {
+      if (marker) {
+        previousMarkerMap[marker.id] = marker
+      }
+    })
+
+    return nextVehicleMarkers.every(marker => marker && previousMarkerMap[marker.id])
+  },
+
+  animateVehicleMarkersOnAndroid(previousMarkers, nextVehicleMarkers, animationDurationMs = VEHICLE_MARKER_ANIMATION_DEFAULT_DURATION_MS) {
+    this.clearVehicleMarkerAnimation()
+    this.clearVehicleMarkerDataSyncTimer()
+
+    const mapContext = this.ensureMapContext()
+    if (!mapContext || typeof mapContext.translateMarker !== 'function') {
+      this.syncVehicleMarkersToData()
+      return
+    }
+
+    const previousMarkerMap = {}
+    previousMarkers.forEach((marker) => {
+      if (marker) {
+        previousMarkerMap[marker.id] = marker
+      }
+    })
+
+    const normalizedDurationMs = Math.min(
+      VEHICLE_MARKER_ANIMATION_MAX_DURATION_MS,
+      Math.max(
+        VEHICLE_MARKER_ANIMATION_MIN_DURATION_MS,
+        Number(animationDurationMs) || VEHICLE_MARKER_ANIMATION_DEFAULT_DURATION_MS
+      )
+    )
+
+    const movedMarkers = nextVehicleMarkers.filter((marker) => {
+      const previousMarker = previousMarkerMap[marker.id]
+      if (!previousMarker) {
+        return false
+      }
+
+      return !this.areNumbersClose(previousMarker.latitude, marker.latitude)
+        || !this.areNumbersClose(previousMarker.longitude, marker.longitude)
+    })
+
+    if (!movedMarkers.length) {
+      this.syncVehicleMarkersToData()
+      return
+    }
+
+    movedMarkers.forEach((marker) => {
+      mapContext.translateMarker({
+        markerId: marker.id,
+        destination: {
+          latitude: marker.latitude,
+          longitude: marker.longitude
+        },
+        autoRotate: true,
+        duration: normalizedDurationMs,
+        fail: (error) => {
+          this.logLocationDebug('translateMarker.fail', {
+            markerId: marker.id,
+            error: this.toDebugError(error)
+          })
+          this.syncVehicleMarkersToData()
+        }
+      })
+    })
+
+    this.scheduleVehicleMarkerDataSync(normalizedDurationMs)
+  },
+
   areNumbersClose(left, right, epsilon = MARKER_COORDINATE_EPSILON) {
     if (left === right) {
       return true
@@ -743,6 +937,49 @@ Page({
         Math.round(gapMs * VEHICLE_MARKER_ANIMATION_GAP_RATIO)
       )
     )
+  },
+
+  getVehicleMarkerMovementThreshold(item) {
+    return String((item && item.status) || '').toUpperCase() === 'RUNNING'
+      ? MIN_VEHICLE_MARKER_MOVEMENT_DISTANCE_METERS
+      : MIN_STOPPED_VEHICLE_MARKER_MOVEMENT_DISTANCE_METERS
+  },
+
+  stabilizeVehicleCoordinate(previousMotion, latitude, longitude, item) {
+    if (
+      !previousMotion
+      || previousMotion.latitude === null
+      || previousMotion.longitude === null
+      || latitude === null
+      || longitude === null
+    ) {
+      return {
+        latitude,
+        longitude,
+        movedDistanceMeters: 0
+      }
+    }
+
+    const movedDistanceMeters = calculateDistanceMeters(
+      previousMotion.latitude,
+      previousMotion.longitude,
+      latitude,
+      longitude
+    )
+
+    if (movedDistanceMeters < this.getVehicleMarkerMovementThreshold(item)) {
+      return {
+        latitude: previousMotion.latitude,
+        longitude: previousMotion.longitude,
+        movedDistanceMeters
+      }
+    }
+
+    return {
+      latitude,
+      longitude,
+      movedDistanceMeters
+    }
   },
 
   getAngleDelta(fromAngle, toAngle) {
@@ -805,10 +1042,7 @@ Page({
         ...item,
         distanceText: this.getVehicleDistanceText(item.latitude, item.longitude)
       }))
-    const vehicleMarkers = (Array.isArray(this.data.markers) ? this.data.markers : [])
-      .filter(marker => marker && marker.id !== USER_MARKER_ID)
-    const userMarker = this.buildUserMarker()
-    const markers = userMarker ? [...vehicleMarkers, userMarker] : vehicleMarkers
+    const markers = this.mergeVehicleAndUserMarkers(this.vehicleMarkers)
 
     this.setData({
       vehicles,
@@ -818,7 +1052,9 @@ Page({
   },
 
   applyVehicles(vehicles) {
-    this.latestVehiclesRaw = this.dedupeVehiclesById(vehicles)
+    this.latestVehiclesRaw = this.resolveIncomingVehicleRecords(
+      this.dedupeVehiclesById(vehicles)
+    )
     const receivedAt = Date.now()
     const nextVehicleIds = {}
     this.latestVehiclesRaw.forEach((item) => {
@@ -832,21 +1068,20 @@ Page({
       }
     })
     const decoratedVehicles = this.latestVehiclesRaw.map(item => this.decorateVehicle(item, receivedAt))
-    const previousVehicleMarkers = (Array.isArray(this.data.markers) ? this.data.markers : [])
-      .filter(marker => marker && marker.id !== USER_MARKER_ID)
+    const previousVehicleMarkers = Array.isArray(this.vehicleMarkers) ? this.vehicleMarkers : []
     const vehicleMarkers = this.buildVehicleMarkers(decoratedVehicles)
     const shouldAnimateVehicleMarkers = this.hasVehicleMarkerStateChanged(previousVehicleMarkers, vehicleMarkers)
+    const useNativeAndroidMarkerAnimation = shouldAnimateVehicleMarkers
+      && this.canUseNativeVehicleMarkerAnimation(previousVehicleMarkers, vehicleMarkers)
     const animationDurationMs = shouldAnimateVehicleMarkers
       ? this.resolveVehicleMarkerAnimationDuration(receivedAt)
       : 0
     const userMarker = this.buildUserMarker()
-    const startVehicleMarkers = this.buildVehicleAnimationStartMarkers(previousVehicleMarkers, vehicleMarkers)
-    const markers = userMarker ? [...startVehicleMarkers, userMarker] : startVehicleMarkers
     const distanceLines = this.buildDistanceLines(decoratedVehicles)
+    this.vehicleMarkers = vehicleMarkers
 
     const nextState = {
       vehicles: decoratedVehicles,
-      markers,
       polyline: distanceLines
     }
 
@@ -858,9 +1093,23 @@ Page({
       this.shouldResetMapCenter = false
     }
 
+    if (useNativeAndroidMarkerAnimation) {
+      this.lastVehicleMarkerChangeAt = receivedAt
+      this.setData(nextState, () => {
+        this.animateVehicleMarkersOnAndroid(previousVehicleMarkers, vehicleMarkers, animationDurationMs)
+      })
+      return
+    }
+
+    this.clearVehicleMarkerDataSyncTimer()
+    nextState.markers = this.mergeVehicleAndUserMarkers(
+      this.isAndroidPlatform() ? vehicleMarkers : this.buildVehicleAnimationStartMarkers(previousVehicleMarkers, vehicleMarkers),
+      userMarker
+    )
+
     this.setData(nextState)
 
-    if (shouldAnimateVehicleMarkers) {
+    if (shouldAnimateVehicleMarkers && !this.isAndroidPlatform()) {
       this.lastVehicleMarkerChangeAt = receivedAt
       this.animateVehicleMarkers(previousVehicleMarkers, vehicleMarkers, animationDurationMs)
       return
@@ -1054,6 +1303,18 @@ Page({
         : 0
     }
 
+    const movedDistanceMeters = calculateDistanceMeters(
+      previousMotion.latitude,
+      previousMotion.longitude,
+      latitude,
+      longitude
+    )
+    if (movedDistanceMeters < MIN_VEHICLE_HEADING_UPDATE_DISTANCE_METERS) {
+      return previousMotion && typeof previousMotion.heading === 'number'
+        ? previousMotion.heading
+        : 0
+    }
+
     const startLatitude = previousMotion.latitude * Math.PI / 180
     const endLatitude = latitude * Math.PI / 180
     const deltaLongitude = (longitude - previousMotion.longitude) * Math.PI / 180
@@ -1065,11 +1326,19 @@ Page({
   },
 
   decorateVehicle(item, receivedAt = Date.now()) {
-    const { latitude, longitude } = this.normalizeCoordinatePair(item.latitude, item.longitude)
+    const normalizedCoordinate = this.normalizeCoordinatePair(item.latitude, item.longitude)
     const previousMotion = this.vehicleMotionMap[item.vehicleId] || null
+    const stabilizedCoordinate = this.stabilizeVehicleCoordinate(
+      previousMotion,
+      normalizedCoordinate.latitude,
+      normalizedCoordinate.longitude,
+      item
+    )
+    const latitude = stabilizedCoordinate.latitude
+    const longitude = stabilizedCoordinate.longitude
     const speed = resolveVehicleCurrentSpeed({
-      latitude,
-      longitude,
+      latitude: normalizedCoordinate.latitude,
+      longitude: normalizedCoordinate.longitude,
       speed: item.speed,
       updateTime: item.updateTime,
       status: item.status
@@ -1081,7 +1350,9 @@ Page({
       longitude,
       speed,
       receivedAt,
-      heading
+      heading,
+      normalizedCoordinate.latitude,
+      normalizedCoordinate.longitude
     )
     return {
       ...item,

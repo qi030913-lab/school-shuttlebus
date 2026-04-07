@@ -83,6 +83,7 @@
         <button class="refresh-btn" size="mini" loading="{{refreshing}}" bindtap="refreshAll">刷新</button>
       </view>
       <map
+        id="vehicleMap"
         class="map-view"
         longitude="{{mapLongitude}}"
         latitude="{{mapLatitude}}"
