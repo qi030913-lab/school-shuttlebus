@@ -148,6 +148,15 @@ function resolveVehicleCurrentSpeed(current, previousSample, receivedAt = Date.n
       && currentLongitude === previousLongitude
 
     if (sameCoordinate) {
+      if (
+        currentTimestamp !== null
+        && previousTimestamp !== null
+        && currentTimestamp === previousTimestamp
+        && previousSpeed !== null
+        && previousSpeed <= MAX_REASONABLE_VEHICLE_SPEED_MPS
+      ) {
+        return previousSpeed
+      }
       return 0
     }
 

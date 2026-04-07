@@ -11,8 +11,13 @@ const VEHICLE_MARKER_ICON = '/assets/bus-marker.png'
 const USER_MARKER_ICON = '/assets/user-marker.png'
 const USER_MARKER_ID = 1000000001
 const VEHICLE_MARKER_ID_MOD = 1000000000
-const VEHICLE_MARKER_ANIMATION_DURATION_MS = 800
-const VEHICLE_MARKER_ANIMATION_STEP_MS = 80
+const VEHICLE_MARKER_ANIMATION_DEFAULT_DURATION_MS = 900
+const VEHICLE_MARKER_ANIMATION_MIN_DURATION_MS = 240
+const VEHICLE_MARKER_ANIMATION_MAX_DURATION_MS = 1800
+const VEHICLE_MARKER_ANIMATION_GAP_RATIO = 0.9
+const VEHICLE_MARKER_ANIMATION_STEP_MS = 33
+const MARKER_COORDINATE_EPSILON = 0.0000001
+const MARKER_ANGLE_EPSILON = 0.1
 const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
 const SOCKET_RETRY_MAX_MS = 15000
@@ -151,6 +156,7 @@ Page({
     this.userLocation = null
     this.latestVehiclesRaw = []
     this.vehicleMotionMap = {}
+    this.lastVehicleMarkerChangeAt = 0
     this.locationPollTimer = null
     this.runtimeInfo = this.getRuntimeInfo()
 
@@ -339,7 +345,7 @@ Page({
       this.setData({
         userLocationText: '已显示你的位置，并连线到在线车辆'
       })
-      this.applyVehicles(this.latestVehiclesRaw)
+      this.refreshVehiclePresentation()
       this.logLocationDebug('refresh-user-location-success', { userLocation })
       return true
     } catch (e) {
@@ -359,9 +365,7 @@ Page({
       this.setData({
         userLocationText: feedback.userLocationText
       })
-      if (this.latestVehiclesRaw) {
-        this.applyVehicles(this.latestVehiclesRaw)
-      }
+      this.refreshVehiclePresentation()
       if (!silent) {
         wx.showToast({ title: feedback.toastTitle, icon: 'none' })
       }
@@ -628,7 +632,7 @@ Page({
     this.setData({ markers })
   },
 
-  animateVehicleMarkers(previousMarkers, nextVehicleMarkers) {
+  animateVehicleMarkers(previousMarkers, nextVehicleMarkers, animationDurationMs = VEHICLE_MARKER_ANIMATION_DEFAULT_DURATION_MS) {
     this.clearVehicleMarkerAnimation()
 
     if (!previousMarkers.length || !nextVehicleMarkers.length) {
@@ -643,8 +647,15 @@ Page({
       }
     })
 
+    const normalizedDurationMs = Math.min(
+      VEHICLE_MARKER_ANIMATION_MAX_DURATION_MS,
+      Math.max(
+        VEHICLE_MARKER_ANIMATION_MIN_DURATION_MS,
+        Number(animationDurationMs) || VEHICLE_MARKER_ANIMATION_DEFAULT_DURATION_MS
+      )
+    )
     const animationFrames = Math.max(1, Math.round(
-      VEHICLE_MARKER_ANIMATION_DURATION_MS / VEHICLE_MARKER_ANIMATION_STEP_MS
+      normalizedDurationMs / VEHICLE_MARKER_ANIMATION_STEP_MS
     ))
 
     let frameIndex = 0
@@ -681,7 +692,57 @@ Page({
       }
     }
 
-    runFrame()
+    this.vehicleMarkerAnimationTimer = setTimeout(runFrame, VEHICLE_MARKER_ANIMATION_STEP_MS)
+  },
+
+  areNumbersClose(left, right, epsilon = MARKER_COORDINATE_EPSILON) {
+    if (left === right) {
+      return true
+    }
+    if (!Number.isFinite(left) || !Number.isFinite(right)) {
+      return false
+    }
+    return Math.abs(left - right) <= epsilon
+  },
+
+  hasVehicleMarkerStateChanged(previousMarkers, nextVehicleMarkers) {
+    if (previousMarkers.length !== nextVehicleMarkers.length) {
+      return true
+    }
+
+    const previousMarkerMap = {}
+    previousMarkers.forEach((marker) => {
+      if (marker) {
+        previousMarkerMap[marker.id] = marker
+      }
+    })
+
+    return nextVehicleMarkers.some((marker) => {
+      const previousMarker = previousMarkerMap[marker.id]
+      if (!previousMarker) {
+        return true
+      }
+
+      return !this.areNumbersClose(previousMarker.latitude, marker.latitude)
+        || !this.areNumbersClose(previousMarker.longitude, marker.longitude)
+        || !this.areNumbersClose(previousMarker.rotation || 0, marker.rotation || 0, MARKER_ANGLE_EPSILON)
+        || !this.areNumbersClose(previousMarker.rotate || 0, marker.rotate || 0, MARKER_ANGLE_EPSILON)
+    })
+  },
+
+  resolveVehicleMarkerAnimationDuration(receivedAt = Date.now()) {
+    if (!this.lastVehicleMarkerChangeAt) {
+      return VEHICLE_MARKER_ANIMATION_DEFAULT_DURATION_MS
+    }
+
+    const gapMs = Math.max(0, receivedAt - this.lastVehicleMarkerChangeAt)
+    return Math.min(
+      VEHICLE_MARKER_ANIMATION_MAX_DURATION_MS,
+      Math.max(
+        VEHICLE_MARKER_ANIMATION_MIN_DURATION_MS,
+        Math.round(gapMs * VEHICLE_MARKER_ANIMATION_GAP_RATIO)
+      )
+    )
   },
 
   getAngleDelta(fromAngle, toAngle) {
@@ -723,6 +784,39 @@ Page({
     })
   },
 
+  getVehicleDistanceText(latitude, longitude) {
+    if (!this.userLocation || latitude === null || longitude === null) {
+      return '\u672a\u5f00\u542f\u7528\u6237\u5b9a\u4f4d'
+    }
+
+    const distanceMeters = calculateDistanceMeters(
+      this.userLocation.latitude,
+      this.userLocation.longitude,
+      latitude,
+      longitude
+    )
+    return `\u8ddd\u79bb\u4f60${this.formatDistance(distanceMeters)}`
+  },
+
+  refreshVehiclePresentation() {
+    const vehicles = (Array.isArray(this.data.vehicles) ? this.data.vehicles : [])
+      .filter(Boolean)
+      .map(item => ({
+        ...item,
+        distanceText: this.getVehicleDistanceText(item.latitude, item.longitude)
+      }))
+    const vehicleMarkers = (Array.isArray(this.data.markers) ? this.data.markers : [])
+      .filter(marker => marker && marker.id !== USER_MARKER_ID)
+    const userMarker = this.buildUserMarker()
+    const markers = userMarker ? [...vehicleMarkers, userMarker] : vehicleMarkers
+
+    this.setData({
+      vehicles,
+      markers,
+      polyline: this.buildDistanceLines(vehicles)
+    })
+  },
+
   applyVehicles(vehicles) {
     this.latestVehiclesRaw = this.dedupeVehiclesById(vehicles)
     const receivedAt = Date.now()
@@ -741,6 +835,10 @@ Page({
     const previousVehicleMarkers = (Array.isArray(this.data.markers) ? this.data.markers : [])
       .filter(marker => marker && marker.id !== USER_MARKER_ID)
     const vehicleMarkers = this.buildVehicleMarkers(decoratedVehicles)
+    const shouldAnimateVehicleMarkers = this.hasVehicleMarkerStateChanged(previousVehicleMarkers, vehicleMarkers)
+    const animationDurationMs = shouldAnimateVehicleMarkers
+      ? this.resolveVehicleMarkerAnimationDuration(receivedAt)
+      : 0
     const userMarker = this.buildUserMarker()
     const startVehicleMarkers = this.buildVehicleAnimationStartMarkers(previousVehicleMarkers, vehicleMarkers)
     const markers = userMarker ? [...startVehicleMarkers, userMarker] : startVehicleMarkers
@@ -761,7 +859,14 @@ Page({
     }
 
     this.setData(nextState)
-    this.animateVehicleMarkers(previousVehicleMarkers, vehicleMarkers)
+
+    if (shouldAnimateVehicleMarkers) {
+      this.lastVehicleMarkerChangeAt = receivedAt
+      this.animateVehicleMarkers(previousVehicleMarkers, vehicleMarkers, animationDurationMs)
+      return
+    }
+
+    this.clearVehicleMarkerAnimation()
   },
 
   buildUserMarker() {
@@ -978,22 +1083,13 @@ Page({
       receivedAt,
       heading
     )
-    const distanceMeters = this.userLocation && latitude !== null && longitude !== null
-      ? calculateDistanceMeters(
-        this.userLocation.latitude,
-        this.userLocation.longitude,
-        latitude,
-        longitude
-      )
-      : null
-
     return {
       ...item,
       latitude,
       longitude,
       heading,
       status: item.status || 'UNKNOWN',
-      distanceText: distanceMeters === null ? '未开启用户定位' : `距离你 ${this.formatDistance(distanceMeters)}`,
+      distanceText: this.getVehicleDistanceText(latitude, longitude),
       speedText: `${Number(speed || 0).toFixed(1)} m/s`,
       speedValueText: Number(speed || 0).toFixed(1),
       speedUnitText: 'm/s'
