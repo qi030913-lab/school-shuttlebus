@@ -906,7 +906,7 @@ Page({
         rotate: heading,
         anchor: {
           x: 0.5,
-          y: 0.7
+          y: 0.5
         },
         ...badgeConfig
       }
