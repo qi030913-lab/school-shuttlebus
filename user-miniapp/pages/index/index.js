@@ -27,6 +27,11 @@ const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
 const SOCKET_RETRY_MAX_MS = 15000
 const LOCATION_DEBUG_PREFIX = '[index][location]'
+const DEFAULT_USER_LOCATION = Object.freeze({
+  latitude: 36.239600,
+  longitude: 117.292518
+})
+const DEFAULT_USER_LOCATION_TEXT = '当前按默认位置显示你与车辆的距离'
 
 Page({
   data: {
@@ -37,12 +42,12 @@ Page({
     routeServiceTime: '',
     routeProgressWidth: '72%',
     vehicles: [],
-    mapLatitude: 39.909,
-    mapLongitude: 116.397,
+    mapLatitude: DEFAULT_USER_LOCATION.latitude,
+    mapLongitude: DEFAULT_USER_LOCATION.longitude,
     markers: [],
     polyline: [],
     refreshing: false,
-    userLocationText: '允许定位后可显示你与车辆的距离'
+    userLocationText: DEFAULT_USER_LOCATION_TEXT
   },
 
   logLocationDebug(step, payload) {
@@ -83,6 +88,31 @@ Page({
 
   isAndroidPlatform() {
     return !!(this.runtimeInfo && this.runtimeInfo.platform === 'android')
+  },
+
+  getDefaultUserLocation() {
+    return {
+      latitude: DEFAULT_USER_LOCATION.latitude,
+      longitude: DEFAULT_USER_LOCATION.longitude
+    }
+  },
+
+  applyDefaultUserLocation(reason = '') {
+    const defaultLocation = this.getDefaultUserLocation()
+
+    if (reason) {
+      this.logLocationDebug('use-default-user-location', {
+        reason,
+        latitude: defaultLocation.latitude,
+        longitude: defaultLocation.longitude
+      })
+    }
+
+    this.userLocation = defaultLocation
+    this.setData({
+      userLocationText: DEFAULT_USER_LOCATION_TEXT
+    })
+    this.refreshVehiclePresentation()
   },
 
   getInvalidLocationFeedback(error) {
@@ -161,7 +191,7 @@ Page({
     this.vehicleMarkerDataSyncTimer = null
     this.vehicleMarkerDataSyncVersion = 0
     this.shouldResetMapCenter = true
-    this.userLocation = null
+    this.userLocation = this.getDefaultUserLocation()
     this.latestVehiclesRaw = []
     this.vehicleMarkers = []
     this.vehicleMotionMap = {}
@@ -342,13 +372,7 @@ Page({
     const hasPermission = await this.ensureLocationPermission(silent)
     this.logLocationDebug('refresh-user-location-permission-result', { hasPermission })
     if (!hasPermission) {
-      this.userLocation = null
-      this.setData({
-        userLocationText: '允许定位后可显示你与车辆的距离'
-      })
-      if (this.latestVehiclesRaw) {
-        this.applyVehicles(this.latestVehiclesRaw)
-      }
+      this.applyDefaultUserLocation('permission-not-granted')
       this.logLocationDebug('refresh-user-location-stop-no-permission')
       return false
     }
@@ -391,11 +415,7 @@ Page({
         currentRouteId: this.data.currentRouteId || '',
         runtimeInfo: this.runtimeInfo
       })
-      this.userLocation = null
-      this.setData({
-        userLocationText: feedback.userLocationText
-      })
-      this.refreshVehiclePresentation()
+      this.applyDefaultUserLocation(e && e.message ? e.message : 'get-location-failed')
       if (!silent) {
         wx.showToast({ title: feedback.toastTitle, icon: 'none' })
       }
@@ -1088,8 +1108,8 @@ Page({
     if (this.shouldResetMapCenter) {
       const firstVehicle = decoratedVehicles.find(item => item.latitude !== null && item.longitude !== null)
       const firstPoint = firstVehicle || userMarker
-      nextState.mapLatitude = firstPoint ? firstPoint.latitude : 39.909
-      nextState.mapLongitude = firstPoint ? firstPoint.longitude : 116.397
+      nextState.mapLatitude = firstPoint ? firstPoint.latitude : DEFAULT_USER_LOCATION.latitude
+      nextState.mapLongitude = firstPoint ? firstPoint.longitude : DEFAULT_USER_LOCATION.longitude
       this.shouldResetMapCenter = false
     }
 
