@@ -4,7 +4,7 @@
     "pages/vehicles/index"
   ],
   "window": {
-    "navigationBarTitleText": "摆渡车",
+    "navigationBarTitleText": "校园摆渡车",
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black"
   },
