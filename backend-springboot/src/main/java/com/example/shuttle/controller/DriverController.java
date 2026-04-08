@@ -3,6 +3,7 @@ package com.example.shuttle.controller;
 import com.example.shuttle.dto.DriverLoginRequest;
 import com.example.shuttle.dto.DriverWxLoginRequest;
 import com.example.shuttle.dto.LocationUploadRequest;
+import com.example.shuttle.exception.TripStateException;
 import com.example.shuttle.model.ApiResponse;
 import com.example.shuttle.model.DriverAccount;
 import com.example.shuttle.model.DriverLoginResult;
@@ -108,6 +109,12 @@ public class DriverController {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiResponse<Object>> handleIllegalState(IllegalStateException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(TripStateException.class)
+    public ResponseEntity<ApiResponse<Object>> handleTripState(TripStateException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ApiResponse<>(false, ex.getMessage(), null));
     }
 

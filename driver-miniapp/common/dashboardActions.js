@@ -3,6 +3,7 @@ function createDashboardActionsModule(config) {
     request,
     uploadThrottleMs,
     testLocationIntervalMs,
+    tripStatusRunningCode,
     tripStatusRunning,
     tripStatusStopped,
     messageFirstLocationFailed,
@@ -11,6 +12,7 @@ function createDashboardActionsModule(config) {
     messageTripStartFailed,
     messageTripStopped,
     messageTripStopFailed,
+    messageStartTripFirst,
     messageLocationPermissionMissing,
     messageEnableGps,
     messageLocationFailed,
@@ -29,6 +31,15 @@ function createDashboardActionsModule(config) {
   } = config
 
   return {
+    ensureTripRunning() {
+      if (this.isTripRunning()) {
+        return true
+      }
+
+      wx.showToast({ title: messageStartTripFirst, icon: 'none' })
+      return false
+    },
+
     stopAutoUploadInternal(showToast, message = '') {
       this.clearPendingUploadTimer()
       this.pendingUploadLocation = null
@@ -43,6 +54,10 @@ function createDashboardActionsModule(config) {
     },
 
     async enableAutoUpload({ showUploadToast = true } = {}) {
+      if (!this.ensureTripRunning()) {
+        return false
+      }
+
       this.stopTestLocationSimulation()
 
       const trackingReady = await this.startLocationTracking()
@@ -79,10 +94,15 @@ function createDashboardActionsModule(config) {
     },
 
     async startTrip() {
+      if (this.isTripRunning()) {
+        wx.showToast({ title: messageTripStarted, icon: 'none' })
+        return
+      }
+
       try {
         this.stopTestLocationSimulation()
-        await request('/api/driver/start', 'POST', {})
-        this.setData({ tripStatus: tripStatusRunning })
+        const result = await request('/api/driver/start', 'POST', {})
+        this.setTripStatus((result && result.status) || tripStatusRunningCode)
         const autoUploadReady = await this.enableAutoUpload({ showUploadToast: false })
         wx.showToast({
           title: autoUploadReady ? messageTripStarted : messageTripStartedCheckLocation,
@@ -96,12 +116,30 @@ function createDashboardActionsModule(config) {
     async finishTrip({ logoutAfterStop = false } = {}) {
       try {
         this.stopTestLocationSimulation()
-        await request('/api/driver/stop', 'POST', {})
+        const result = await request('/api/driver/stop', 'POST', {})
         this.stopAutoUploadInternal(false)
         this.stopLocationTracking()
-        this.latestLocation = null
-        this.resetLocationPanel()
-        this.setData({ tripStatus: tripStatusStopped })
+
+        const hasLocation = result
+          && result.latitude !== null
+          && result.latitude !== undefined
+          && result.longitude !== null
+          && result.longitude !== undefined
+
+        if (hasLocation) {
+          const location = this.normalizeLocation({
+            latitude: result.latitude,
+            longitude: result.longitude,
+            speed: result.speed || 0
+          })
+          this.latestLocation = location
+          this.updateLocationPanel(location)
+        } else {
+          this.latestLocation = null
+          this.resetLocationPanel()
+        }
+
+        this.setTripStatus((result && result.status) || 'STOPPED')
 
         if (logoutAfterStop) {
           wx.removeStorageSync('driverInfo')
@@ -118,10 +156,18 @@ function createDashboardActionsModule(config) {
     },
 
     async stopTrip() {
+      if (!this.ensureTripRunning()) {
+        return
+      }
+
       await this.finishTrip()
     },
 
     async uploadOnce() {
+      if (!this.ensureTripRunning()) {
+        return
+      }
+
       this.stopTestLocationSimulation()
 
       const hasPermission = await this.ensureLocationPermission()
@@ -152,12 +198,20 @@ function createDashboardActionsModule(config) {
         return
       }
 
+      if (!this.ensureTripRunning()) {
+        return
+      }
+
       await this.enableAutoUpload({ showUploadToast: true })
     },
 
     async toggleTestLocation() {
       if (this.data.testing) {
         this.stopTestLocationSimulation(true, messageTestStopped)
+        return
+      }
+
+      if (!this.ensureTripRunning()) {
         return
       }
 
@@ -279,6 +333,13 @@ function createDashboardActionsModule(config) {
     },
 
     async uploadLocation(location, silent) {
+      if (!this.isTripRunning()) {
+        if (!silent) {
+          wx.showToast({ title: messageStartTripFirst, icon: 'none' })
+        }
+        return false
+      }
+
       this.uploading = true
       this.lastUploadAt = Date.now()
 
@@ -290,9 +351,7 @@ function createDashboardActionsModule(config) {
         })
 
         this.updateLocationPanel(location)
-        this.setData({
-          tripStatus: result.status === 'RUNNING' ? tripStatusRunning : tripStatusStopped
-        })
+        this.setTripStatus(result && result.status)
 
         if (!silent) {
           wx.showToast({ title: messageUploadSuccess, icon: 'success' })
@@ -325,7 +384,17 @@ function createDashboardActionsModule(config) {
     },
 
     async logout() {
-      await this.finishTrip({ logoutAfterStop: true })
+      this.stopTestLocationSimulation()
+      this.stopAutoUploadInternal(false)
+      this.stopLocationTracking()
+
+      if (this.isTripRunning()) {
+        await this.finishTrip({ logoutAfterStop: true })
+        return
+      }
+
+      wx.removeStorageSync('driverInfo')
+      wx.redirectTo({ url: '/pages/login/login' })
     }
   }
 }

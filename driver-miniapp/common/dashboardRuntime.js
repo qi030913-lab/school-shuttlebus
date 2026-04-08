@@ -1,6 +1,9 @@
 function createDashboardRuntimeModule(config) {
   const {
     request,
+    tripStatusIdleCode,
+    tripStatusRunningCode,
+    tripStatusStoppedCode,
     tripStatusIdle,
     tripStatusRunning,
     tripStatusStopped,
@@ -89,6 +92,37 @@ function createDashboardRuntimeModule(config) {
       }
     },
 
+    normalizeTripStatus(status) {
+      const normalized = String(status || '').toUpperCase()
+      if (normalized === tripStatusRunningCode) {
+        return tripStatusRunningCode
+      }
+      if (normalized === tripStatusStoppedCode) {
+        return tripStatusStoppedCode
+      }
+      return tripStatusIdleCode
+    },
+
+    setTripStatus(status) {
+      const nextStatus = this.normalizeTripStatus(status)
+      const statusTextMap = {
+        [tripStatusIdleCode]: tripStatusIdle,
+        [tripStatusRunningCode]: tripStatusRunning,
+        [tripStatusStoppedCode]: tripStatusStopped
+      }
+
+      this.setData({
+        tripStatusCode: nextStatus,
+        tripStatus: statusTextMap[nextStatus] || tripStatusIdle
+      })
+
+      return nextStatus
+    },
+
+    isTripRunning() {
+      return this.data.tripStatusCode === tripStatusRunningCode
+    },
+
     stopTestLocationSimulation(showToast = false, message = '') {
       this.clearTestLocationTimer()
       this.testLocationState = null
@@ -125,7 +159,7 @@ function createDashboardRuntimeModule(config) {
 
     async restoreRuntimeState() {
       if (!this.data.vehicleId) {
-        this.setData({ tripStatus: tripStatusIdle })
+        this.setTripStatus(tripStatusIdleCode)
         this.resetLocationPanel()
         return
       }
@@ -133,7 +167,7 @@ function createDashboardRuntimeModule(config) {
       try {
         const runtime = await request(`/api/user/vehicles/${encodeURIComponent(this.data.vehicleId)}`)
         if (!runtime || !runtime.vehicleId) {
-          this.setData({ tripStatus: tripStatusIdle })
+          this.setTripStatus(tripStatusIdleCode)
           this.resetLocationPanel()
           return
         }
@@ -156,14 +190,14 @@ function createDashboardRuntimeModule(config) {
           this.resetLocationPanel()
         }
 
+        this.setTripStatus(runtime.status)
         this.setData({
-          tripStatus: runtime.status === 'RUNNING' ? tripStatusRunning : tripStatusStopped,
           routeId: runtime.routeId || this.data.routeId,
           routeName: runtime.routeName || this.data.routeName
         })
       } catch (e) {
         this.latestLocation = null
-        this.setData({ tripStatus: tripStatusIdle })
+        this.setTripStatus(tripStatusIdleCode)
         this.resetLocationPanel()
       }
     }

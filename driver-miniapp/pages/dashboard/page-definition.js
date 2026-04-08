@@ -39,6 +39,10 @@ const TEST_MANUAL_ROUTE_POINTS = [
 const TENCENT_MAP_DIRECTION_KEY = tencentMap.directionKey
 const TENCENT_MAP_DIRECTION_MODES = ['driving', 'walking']
 
+const TRIP_STATUS_CODE_IDLE = 'IDLE'
+const TRIP_STATUS_CODE_RUNNING = 'RUNNING'
+const TRIP_STATUS_CODE_STOPPED = 'STOPPED'
+
 const TRIP_STATUS_IDLE = '未发车'
 const TRIP_STATUS_RUNNING = '运行中'
 const TRIP_STATUS_STOPPED = '已结束'
@@ -59,6 +63,7 @@ const MESSAGE_TRIP_STARTED_CHECK_LOCATION = '已发车，请检查定位'
 const MESSAGE_TRIP_START_FAILED = '发车失败'
 const MESSAGE_TRIP_STOPPED = '已结束发车'
 const MESSAGE_TRIP_STOP_FAILED = '结束发车失败'
+const MESSAGE_START_TRIP_FIRST = '请先开始发车'
 const MESSAGE_LOCATION_FAILED = '定位失败，请重试'
 const MESSAGE_TEST_STOPPED = '测试已停止'
 const MESSAGE_TEST_ROUTE_PREPARING = '测试路线准备中'
@@ -79,6 +84,7 @@ const pageDefinition = {
     vehicleId: '',
     routeId: '',
     routeName: '',
+    tripStatusCode: TRIP_STATUS_CODE_IDLE,
     tripStatus: TRIP_STATUS_IDLE,
     latitude: '--',
     longitude: '--',
@@ -112,6 +118,9 @@ const pageDefinition = {
 
 const runtimeModule = createDashboardRuntimeModule({
   request,
+  tripStatusIdleCode: TRIP_STATUS_CODE_IDLE,
+  tripStatusRunningCode: TRIP_STATUS_CODE_RUNNING,
+  tripStatusStoppedCode: TRIP_STATUS_CODE_STOPPED,
   tripStatusIdle: TRIP_STATUS_IDLE,
   tripStatusRunning: TRIP_STATUS_RUNNING,
   tripStatusStopped: TRIP_STATUS_STOPPED,
@@ -147,6 +156,7 @@ const actionsModule = createDashboardActionsModule({
   request,
   uploadThrottleMs: UPLOAD_THROTTLE_MS,
   testLocationIntervalMs: TEST_LOCATION_INTERVAL_MS,
+  tripStatusRunningCode: TRIP_STATUS_CODE_RUNNING,
   tripStatusRunning: TRIP_STATUS_RUNNING,
   tripStatusStopped: TRIP_STATUS_STOPPED,
   messageFirstLocationFailed: MESSAGE_FIRST_LOCATION_FAILED,
@@ -155,6 +165,7 @@ const actionsModule = createDashboardActionsModule({
   messageTripStartFailed: MESSAGE_TRIP_START_FAILED,
   messageTripStopped: MESSAGE_TRIP_STOPPED,
   messageTripStopFailed: MESSAGE_TRIP_STOP_FAILED,
+  messageStartTripFirst: MESSAGE_START_TRIP_FIRST,
   messageLocationPermissionMissing: MESSAGE_LOCATION_PERMISSION_MISSING,
   messageEnableGps: MESSAGE_ENABLE_GPS,
   messageLocationFailed: MESSAGE_LOCATION_FAILED,

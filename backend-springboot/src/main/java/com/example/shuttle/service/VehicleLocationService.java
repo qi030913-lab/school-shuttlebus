@@ -1,5 +1,6 @@
 package com.example.shuttle.service;
 
+import com.example.shuttle.exception.TripStateException;
 import com.example.shuttle.model.RouteInfo;
 import com.example.shuttle.model.VehicleLocation;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -12,6 +13,9 @@ import java.util.List;
 
 @Service
 public class VehicleLocationService {
+    private static final String STATUS_RUNNING = "RUNNING";
+    private static final String STATUS_STOPPED = "STOPPED";
+
     private final JdbcTemplate jdbcTemplate;
     private final RouteService routeService;
 
@@ -21,7 +25,14 @@ public class VehicleLocationService {
     }
 
     public VehicleLocation startTrip(String vehicleId, String driverName, String routeId) {
-        upsertRuntime(vehicleId, routeId, driverName, null, null, null, "RUNNING");
+        VehicleLocation current = getByVehicleId(vehicleId);
+        Double latitude = current == null ? null : current.getLatitude();
+        Double longitude = current == null ? null : current.getLongitude();
+        Double speed = current != null && isRunningStatus(current.getStatus())
+                ? current.getSpeed()
+                : zeroSpeedIfLocationKnown(latitude, longitude);
+
+        upsertRuntime(vehicleId, routeId, driverName, latitude, longitude, speed, STATUS_RUNNING);
         return getByVehicleId(vehicleId);
     }
 
@@ -30,19 +41,31 @@ public class VehicleLocationService {
         if (current == null) {
             return null;
         }
-        current.setStatus("STOPPED");
-        current.setUpdateTime(LocalDateTime.now());
-        deleteRuntime(vehicleId);
-        return current;
+
+        upsertRuntime(
+                vehicleId,
+                current.getRouteId(),
+                current.getDriverName(),
+                current.getLatitude(),
+                current.getLongitude(),
+                zeroSpeedIfLocationKnown(current.getLatitude(), current.getLongitude()),
+                STATUS_STOPPED
+        );
+        return getByVehicleId(vehicleId);
     }
 
     public VehicleLocation updateLocation(String vehicleId, String driverName, String routeId, Double latitude, Double longitude, Double speed) {
+        VehicleLocation current = getByVehicleId(vehicleId);
+        if (current == null || !isRunningStatus(current.getStatus())) {
+            throw new TripStateException("请先开始发车后再上传位置");
+        }
+
         VehicleLocation vehicleLocation = new VehicleLocation();
         fillBasicFields(vehicleLocation, vehicleId, driverName, routeId);
         vehicleLocation.setLatitude(latitude);
         vehicleLocation.setLongitude(longitude);
         vehicleLocation.setSpeed(speed);
-        vehicleLocation.setStatus("RUNNING");
+        vehicleLocation.setStatus(STATUS_RUNNING);
         vehicleLocation.setUpdateTime(LocalDateTime.now());
 
         upsertRuntime(
@@ -137,8 +160,12 @@ public class VehicleLocationService {
         jdbcTemplate.update(sql, vehicleId, routeId, latitude, longitude, speed);
     }
 
-    private void deleteRuntime(String vehicleId) {
-        jdbcTemplate.update("DELETE FROM vehicle_runtime WHERE vehicle_id = ?", vehicleId);
+    private boolean isRunningStatus(String status) {
+        return STATUS_RUNNING.equalsIgnoreCase(status);
+    }
+
+    private Double zeroSpeedIfLocationKnown(Double latitude, Double longitude) {
+        return latitude == null || longitude == null ? null : 0D;
     }
 
     private void fillBasicFields(VehicleLocation vehicleLocation, String vehicleId, String driverName, String routeId) {

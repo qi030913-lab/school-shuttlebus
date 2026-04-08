@@ -11,13 +11,13 @@
     <view class="row"><text>{{labels.speed}}</text><text>{{speed}}</text></view>
 
     <view class="button-group">
-      <button type="primary" bindtap="startTrip">{{labels.startTrip}}</button>
-      <button bindtap="uploadOnce">{{labels.uploadOnce}}</button>
+      <button type="primary" bindtap="startTrip" disabled="{{tripStatusCode === 'RUNNING'}}">{{labels.startTrip}}</button>
+      <button bindtap="uploadOnce" disabled="{{tripStatusCode !== 'RUNNING'}}">{{labels.uploadOnce}}</button>
       <button wx:if="{{autoUpload}}" bindtap="toggleAutoUpload">{{labels.stopAutoUpload}}</button>
-      <button wx:else bindtap="toggleAutoUpload">{{labels.startAutoUpload}}</button>
+      <button wx:else bindtap="toggleAutoUpload" disabled="{{tripStatusCode !== 'RUNNING'}}">{{labels.startAutoUpload}}</button>
       <button wx:if="{{testing}}" bindtap="toggleTestLocation">{{labels.stopTest}}</button>
-      <button wx:else bindtap="toggleTestLocation">{{labels.startTestRoute}}</button>
-      <button type="warn" bindtap="stopTrip">{{labels.stopTrip}}</button>
+      <button wx:else bindtap="toggleTestLocation" disabled="{{tripStatusCode !== 'RUNNING'}}">{{labels.startTestRoute}}</button>
+      <button type="warn" bindtap="stopTrip" disabled="{{tripStatusCode !== 'RUNNING'}}">{{labels.stopTrip}}</button>
       <button bindtap="logout">{{labels.logout}}</button>
     </view>
   </view>
