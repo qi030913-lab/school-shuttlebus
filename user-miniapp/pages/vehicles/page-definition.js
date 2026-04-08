@@ -1,9 +1,10 @@
+const { request } = require('../../common/request')
 const {
-  request,
   resolveVehicleCurrentSpeed,
   buildVehicleMotionSnapshot
-} = require('../../utils')
+} = require('../../common/vehicleState')
 const socketModule = require('../../common/socket')
+const pageHelpers = require('../../common/pageHelpers')
 
 const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
@@ -237,113 +238,7 @@ const pageDefinition = {
       speedText: `${Number(speed || 0).toFixed(1)} m/s`,
       updateTimeText: this.formatUpdateTime(item.updateTime)
     }
-  },
-
-  parseCoordinate(value) {
-    if (value === null || value === undefined || value === '') {
-      return null
-    }
-    const num = Number(value)
-    return Number.isFinite(num) ? num : null
-  },
-
-  isValidLatitude(value) {
-    return typeof value === 'number' && value >= -90 && value <= 90
-  },
-
-  isValidLongitude(value) {
-    return typeof value === 'number' && value >= -180 && value <= 180
-  },
-
-  normalizeCoordinatePair(latitudeValue, longitudeValue) {
-    const latitude = this.parseCoordinate(latitudeValue)
-    const longitude = this.parseCoordinate(longitudeValue)
-
-    if (latitude === null || longitude === null) {
-      return {
-        latitude: null,
-        longitude: null
-      }
-    }
-
-    if (this.isValidLatitude(latitude) && this.isValidLongitude(longitude)) {
-      return { latitude, longitude }
-    }
-
-    if (this.isValidLatitude(longitude) && this.isValidLongitude(latitude)) {
-      return {
-        latitude: longitude,
-        longitude: latitude
-      }
-    }
-
-    return {
-      latitude: null,
-      longitude: null
-    }
-  },
-
-  formatCoordinateText(value) {
-    return value !== null ? value.toFixed(6) : '--'
-  },
-
-  formatClock(date) {
-    const hh = String(date.getHours()).padStart(2, '0')
-    const mm = String(date.getMinutes()).padStart(2, '0')
-    const ss = String(date.getSeconds()).padStart(2, '0')
-    return `${hh}:${mm}:${ss}`
-  },
-
-  formatUpdateTime(value) {
-    if (!value) {
-      return '--'
-    }
-
-    if (Array.isArray(value) && value.length >= 6) {
-      const [year, month, day, hour, minute, second] = value
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`
-    }
-
-    if (typeof value === 'string') {
-      return value.replace('T', ' ').slice(0, 19)
-    }
-
-    if (typeof value === 'number') {
-      return this.formatDateTime(new Date(value))
-    }
-
-    if (typeof value === 'object') {
-      const year = value.year
-      const month = value.monthValue || value.month
-      const day = value.dayOfMonth || value.day
-      const hour = value.hour
-      const minute = value.minute
-      const second = value.second
-
-      if (
-        year !== undefined
-        && month !== undefined
-        && day !== undefined
-        && hour !== undefined
-        && minute !== undefined
-        && second !== undefined
-      ) {
-        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`
-      }
-    }
-
-    return '--'
-  },
-
-  formatDateTime(date) {
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hh = String(date.getHours()).padStart(2, '0')
-    const mm = String(date.getMinutes()).padStart(2, '0')
-    const ss = String(date.getSeconds()).padStart(2, '0')
-    return `${year}-${month}-${day} ${hh}:${mm}:${ss}`
   }
 }
 
-module.exports = Object.assign({}, pageDefinition, socketModule)
+module.exports = Object.assign({}, pageDefinition, socketModule, pageHelpers)

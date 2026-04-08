@@ -1,12 +1,13 @@
+const { request } = require('../../common/request')
 const {
-  request,
   calculateDistanceMeters,
   parseUpdateTimeToTimestamp,
   resolveVehicleCurrentSpeed,
   buildVehicleMotionSnapshot
-} = require('../../utils')
+} = require('../../common/vehicleState')
 const socketModule = require('../../common/socket')
 const locationModule = require('../../common/location')
+const pageHelpers = require('../../common/pageHelpers')
 
 const VEHICLE_MARKER_ICON = '/assets/bus-marker.png'
 const USER_MARKER_ICON = '/assets/user-marker.png'
@@ -150,35 +151,6 @@ module.exports = {
       code: error.code,
       message: error.message,
       stack: error.stack
-    }
-  },
-
-  getPrivacySetting() {
-    if (typeof wx.getPrivacySetting !== 'function') {
-      return Promise.resolve({ supported: false })
-    }
-
-    return new Promise((resolve, reject) => {
-      wx.getPrivacySetting({
-        success: resolve,
-        fail: reject
-      })
-    })
-  },
-
-  async logPrivacySetting(scene) {
-    if (typeof wx.getPrivacySetting !== 'function') {
-      this.logLocationDebug(`${scene}-privacy-setting-api-unavailable`)
-      return null
-    }
-
-    try {
-      const privacyRes = await this.getPrivacySetting()
-      this.logLocationDebug(`${scene}-privacy-setting`, privacyRes)
-      return privacyRes
-    } catch (error) {
-      this.logLocationDebug(`${scene}-privacy-setting-failed`, this.toDebugError(error))
-      return null
     }
   },
 
@@ -1158,85 +1130,6 @@ module.exports = {
     }
   },
 
-  parseCoordinate(value) {
-    if (value === null || value === undefined || value === '') {
-      return null
-    }
-    const num = Number(value)
-    return Number.isFinite(num) ? num : null
-  },
-
-  isValidLatitude(value) {
-    return typeof value === 'number' && value >= -90 && value <= 90
-  },
-
-  isValidLongitude(value) {
-    return typeof value === 'number' && value >= -180 && value <= 180
-  },
-
-  normalizeCoordinatePair(latitudeValue, longitudeValue, debugSource = '') {
-    const latitude = this.parseCoordinate(latitudeValue)
-    const longitude = this.parseCoordinate(longitudeValue)
-
-    if (latitude === null || longitude === null) {
-      if (debugSource) {
-        this.logLocationDebug(`${debugSource}-coordinate-missing`, {
-          latitudeValue,
-          longitudeValue,
-          latitude,
-          longitude
-        })
-      }
-      return {
-        latitude: null,
-        longitude: null
-      }
-    }
-
-    if (this.isValidLatitude(latitude) && this.isValidLongitude(longitude)) {
-      return { latitude, longitude }
-    }
-
-    if (this.isValidLatitude(longitude) && this.isValidLongitude(latitude)) {
-      if (debugSource) {
-        this.logLocationDebug(`${debugSource}-coordinate-swapped`, {
-          latitudeValue,
-          longitudeValue,
-          normalizedLatitude: longitude,
-          normalizedLongitude: latitude
-        })
-      }
-      return {
-        latitude: longitude,
-        longitude: latitude
-      }
-    }
-
-    if (debugSource) {
-      this.logLocationDebug(`${debugSource}-coordinate-invalid`, {
-        latitudeValue,
-        longitudeValue,
-        latitude,
-        longitude
-      })
-    }
-
-    return {
-      latitude: null,
-      longitude: null
-    }
-  },
-
-  formatDistance(distanceMeters) {
-    if (distanceMeters < 1000) {
-      return `${Math.round(distanceMeters)}m`
-    }
-    if (distanceMeters < 10000) {
-      return `${(distanceMeters / 1000).toFixed(1)}km`
-    }
-    return `${Math.round(distanceMeters / 1000)}km`
-  },
-
   getRouteProgressWidth(serviceTime) {
     if (!serviceTime || !serviceTime.includes('-')) {
       return '72%'
@@ -1255,22 +1148,7 @@ module.exports = {
     const ratio = (clamped - startHour) / (endHour - startHour)
     const percent = 18 + ratio * 70
     return `${percent.toFixed(0)}%`
-  },
-
-  parseTimeToMinutes(value) {
-    const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})$/)
-    if (!match) {
-      return null
-    }
-
-    const hours = Number(match[1])
-    const minutes = Number(match[2])
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-      return null
-    }
-
-    return hours * 60 + minutes
   }
 }
 
-module.exports = Object.assign({}, module.exports, socketModule, locationModule)
+module.exports = Object.assign({}, module.exports, socketModule, locationModule, pageHelpers)

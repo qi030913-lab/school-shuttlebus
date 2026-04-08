@@ -1,4 +1,4 @@
-const { request } = require('../../utils')
+const { request } = require('../../common/request')
 
 Page({
   data: {

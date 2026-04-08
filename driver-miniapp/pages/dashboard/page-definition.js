@@ -1,17 +1,17 @@
-const { request } = require('../../utils')
+const { request } = require('../../common/request')
 const { tencentMap } = require('../../config')
 const { createDashboardLocationModule } = require('../../common/location')
 const { createDashboardTestRouteModule } = require('../../common/testRoute')
 
 
 const UPLOAD_THROTTLE_MS = 1000
-// 测试数据1 北门到双体 线上演示
+// 测试数据1 北门到双体 线下演示
 const TEST_START_LATITUDE = 36.244498
 const TEST_START_LONGITUDE = 117.287531
 const TEST_TARGET_LATITUDE = 36.241457
 const TEST_TARGET_LONGITUDE = 117.291047
 
-// 测试数据2 南门到育英 线下演示
+// 测试数据2 南门到育英 线上演示
 // const TEST_START_LATITUDE = 36.239910
 // const TEST_START_LONGITUDE = 117.287131
 // const TEST_TARGET_LATITUDE = 36.239671
