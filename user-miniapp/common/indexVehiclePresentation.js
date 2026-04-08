@@ -8,6 +8,10 @@ const {
 const MIN_VEHICLE_HEADING_UPDATE_DISTANCE_METERS = 5
 
 module.exports = {
+  isVehicleVisibleToUser(item) {
+    return !!(item && String(item.status || '').toUpperCase() === 'RUNNING')
+  },
+
   dedupeVehiclesById(vehicles) {
     const list = Array.isArray(vehicles) ? vehicles : []
     const deduped = []
@@ -140,7 +144,7 @@ module.exports = {
   applyVehicles(vehicles) {
     this.latestVehiclesRaw = this.resolveIncomingVehicleRecords(
       this.dedupeVehiclesById(vehicles)
-    )
+    ).filter(item => this.isVehicleVisibleToUser(item))
     const receivedAt = Date.now()
     const nextVehicleIds = {}
     this.latestVehiclesRaw.forEach((item) => {

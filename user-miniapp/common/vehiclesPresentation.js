@@ -4,20 +4,25 @@ const {
 } = require('./vehicleState')
 
 module.exports = {
+  isVehicleVisibleToUser(item) {
+    return !!(item && String(item.status || '').toUpperCase() === 'RUNNING')
+  },
+
   filterVehicles(vehicles) {
     const list = Array.isArray(vehicles) ? vehicles : []
 
     if (this.data.detailMode) {
-      return list.filter(item => item.vehicleId === this.data.vehicleId)
+      return list.filter(item => item.vehicleId === this.data.vehicleId && this.isVehicleVisibleToUser(item))
     }
 
-    return list.filter(item => !this.data.routeId || item.routeId === this.data.routeId)
+    return list.filter(item => this.isVehicleVisibleToUser(item) && (!this.data.routeId || item.routeId === this.data.routeId))
   },
 
   applyVehicles(vehicles) {
+    const visibleVehicles = this.filterVehicles(vehicles)
     const receivedAt = Date.now()
     const nextVehicleIds = {}
-    vehicles.forEach((item) => {
+    visibleVehicles.forEach((item) => {
       if (item && item.vehicleId) {
         nextVehicleIds[item.vehicleId] = true
       }
@@ -27,7 +32,7 @@ module.exports = {
         delete this.vehicleMotionMap[vehicleId]
       }
     })
-    const decoratedVehicles = vehicles.map(item => this.decorateVehicle(item, receivedAt))
+    const decoratedVehicles = visibleVehicles.map(item => this.decorateVehicle(item, receivedAt))
     this.setData({
       vehicles: decoratedVehicles,
       liveVehicleCount: decoratedVehicles.length,
