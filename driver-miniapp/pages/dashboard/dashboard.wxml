@@ -1,22 +1,24 @@
 <view class="container">
   <view class="card">
-    <view class="title">司机面板</view>
-    <view class="row"><text>司机：</text><text>{{driverName}}</text></view>
-    <view class="row"><text>车辆：</text><text>{{vehicleId}}</text></view>
-    <view class="row"><text>线路：</text><text>{{routeName}}（{{routeId}}）</text></view>
-    <view class="row"><text>登录模式：</text><text>{{mockMode ? 'Mock 模式' : '微信真实登录'}}</text></view>
-    <view class="row"><text>状态：</text><text>{{tripStatus}}</text></view>
-    <view class="row"><text>纬度：</text><text>{{latitude}}</text></view>
-    <view class="row"><text>经度：</text><text>{{longitude}}</text></view>
-    <view class="row"><text>速度：</text><text>{{speed}}</text></view>
+    <view class="title">{{labels.panelTitle}}</view>
+    <view class="row"><text>{{labels.driver}}</text><text>{{driverName}}</text></view>
+    <view class="row"><text>{{labels.vehicle}}</text><text>{{vehicleId}}</text></view>
+    <view class="row"><text>{{labels.route}}</text><text>{{routeName}} ({{routeId}})</text></view>
+    <view class="row"><text>{{labels.loginMode}}</text><text>{{mockMode ? labels.mockMode : labels.realLogin}}</text></view>
+    <view class="row"><text>{{labels.status}}</text><text>{{tripStatus}}</text></view>
+    <view class="row"><text>{{labels.latitude}}</text><text>{{latitude}}</text></view>
+    <view class="row"><text>{{labels.longitude}}</text><text>{{longitude}}</text></view>
+    <view class="row"><text>{{labels.speed}}</text><text>{{speed}}</text></view>
 
     <view class="button-group">
-      <button type="primary" bindtap="startTrip">开始发车</button>
-      <button bindtap="uploadOnce">上传一次位置</button>
-      <button bindtap="toggleAutoUpload">{{autoUpload ? '停止自动上传' : '开启自动上传'}}</button>
-      <button bindtap="toggleTestLocation">{{testing ? '停止测试' : '开始测试'}}</button>
-      <button type="warn" bindtap="stopTrip">结束发车</button>
-      <button bindtap="logout">退出登录</button>
+      <button type="primary" bindtap="startTrip">{{labels.startTrip}}</button>
+      <button bindtap="uploadOnce">{{labels.uploadOnce}}</button>
+      <button wx:if="{{autoUpload}}" bindtap="toggleAutoUpload">{{labels.stopAutoUpload}}</button>
+      <button wx:else bindtap="toggleAutoUpload">{{labels.startAutoUpload}}</button>
+      <button wx:if="{{testing}}" bindtap="toggleTestLocation">{{labels.stopTest}}</button>
+      <button wx:else bindtap="toggleTestLocation">{{labels.startTestRoute}}</button>
+      <button type="warn" bindtap="stopTrip">{{labels.stopTrip}}</button>
+      <button bindtap="logout">{{labels.logout}}</button>
     </view>
   </view>
 </view>

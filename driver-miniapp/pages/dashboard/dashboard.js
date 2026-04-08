@@ -1,27 +1,65 @@
 const { request } = require('../../utils')
+const { tencentMap } = require('../../config')
 
 const UPLOAD_THROTTLE_MS = 1000
-const TEST_START_LATITUDE = 36.2423104052041
-const TEST_START_LONGITUDE = 117.28271074734232
-const TEST_TARGET_LATITUDE = 36.245052820456635
-const TEST_TARGET_LONGITUDE = 117.28756910282573
-const TEST_LOCATION_MAX_DELTA = 0.0001
+const TEST_START_LATITUDE = 36.244498
+const TEST_START_LONGITUDE = 117.287531
+const TEST_TARGET_LATITUDE = 36.241457
+const TEST_TARGET_LONGITUDE = 117.291047
 const TEST_LOCATION_INTERVAL_MS = 1000
-const TEST_LOCATION_STEP_COUNT = Math.max(
-  1,
-  Math.ceil(
-    Math.max(
-      Math.abs(TEST_TARGET_LATITUDE - TEST_START_LATITUDE),
-      Math.abs(TEST_TARGET_LONGITUDE - TEST_START_LONGITUDE)
-    ) / TEST_LOCATION_MAX_DELTA
-  )
+const TEST_ROUTE_SAMPLE_DISTANCE_METERS = 6
+const TEST_ROUTE_DEFAULT_SPEED = Number(
+  (TEST_ROUTE_SAMPLE_DISTANCE_METERS * 1000 / TEST_LOCATION_INTERVAL_MS).toFixed(2)
 )
-const TEST_ROUTE_WAYPOINT_COUNT = 2
-const TEST_ROUTE_MIN_OFFSET_RATIO = 0.08
-const TEST_ROUTE_MAX_OFFSET_RATIO = 0.16
-const TRIP_STATUS_IDLE = '未发车'
-const TRIP_STATUS_RUNNING = '运行中'
-const TRIP_STATUS_STOPPED = '已结束'
+const TEST_MANUAL_ROUTE_POINTS = [
+  [36.244498, 117.287531],
+  [36.244512, 117.287902],
+  [36.24452, 117.288318],
+  [36.244498, 117.288796],
+  [36.244255, 117.289248],
+  [36.243846, 117.28964],
+  [36.243343, 117.289987],
+  [36.242787, 117.29033],
+  [36.242214, 117.290618],
+  [36.24176, 117.290874],
+  [36.241457, 117.291047]
+]
+const TENCENT_MAP_DIRECTION_KEY = tencentMap.directionKey
+const TENCENT_MAP_DIRECTION_MODES = ['driving', 'walking']
+
+const TRIP_STATUS_IDLE = '\u672a\u53d1\u8f66'
+const TRIP_STATUS_RUNNING = '\u8fd0\u884c\u4e2d'
+const TRIP_STATUS_STOPPED = '\u5df2\u7ed3\u675f'
+
+const MESSAGE_LOGIN_EXPIRED = '\u767b\u5f55\u6001\u5931\u6548\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55'
+const MESSAGE_NEED_LOCATION_PERMISSION = '\u9700\u8981\u5b9a\u4f4d\u6743\u9650'
+const MESSAGE_NEED_LOCATION_PERMISSION_DESC = '\u53f8\u673a\u7aef\u9700\u8981\u83b7\u53d6\u5b9a\u4f4d\u540e\u624d\u80fd\u4e0a\u4f20\u8f66\u8f86\u4f4d\u7f6e\uff0c\u8bf7\u5148\u5f00\u542f\u5b9a\u4f4d\u6743\u9650\u3002'
+const MESSAGE_GO_ENABLE = '\u53bb\u5f00\u542f'
+const MESSAGE_CANCEL = '\u53d6\u6d88'
+const MESSAGE_OPEN_SETTING_FAILED = '\u65e0\u6cd5\u6253\u5f00\u8bbe\u7f6e\u9875'
+const MESSAGE_CHECK_PERMISSION_FAILED = '\u5b9a\u4f4d\u6743\u9650\u68c0\u67e5\u5931\u8d25'
+const MESSAGE_LOCATION_PERMISSION_MISSING = '\u672a\u5f00\u542f\u5b9a\u4f4d\u6743\u9650'
+const MESSAGE_ENABLE_GPS = '\u8bf7\u6253\u5f00\u624b\u673a\u5b9a\u4f4d\u670d\u52a1'
+const MESSAGE_START_TRACKING_FAILED = '\u5f00\u542f\u6301\u7eed\u5b9a\u4f4d\u5931\u8d25'
+const MESSAGE_FIRST_LOCATION_FAILED = '\u9996\u6b21\u5b9a\u4f4d\u5931\u8d25'
+const MESSAGE_TRIP_STARTED = '\u5df2\u53d1\u8f66'
+const MESSAGE_TRIP_STARTED_CHECK_LOCATION = '\u5df2\u53d1\u8f66\uff0c\u8bf7\u68c0\u67e5\u5b9a\u4f4d'
+const MESSAGE_TRIP_START_FAILED = '\u53d1\u8f66\u5931\u8d25'
+const MESSAGE_TRIP_STOPPED = '\u5df2\u7ed3\u675f\u53d1\u8f66'
+const MESSAGE_TRIP_STOP_FAILED = '\u7ed3\u675f\u53d1\u8f66\u5931\u8d25'
+const MESSAGE_LOCATION_FAILED = '\u5b9a\u4f4d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5'
+const MESSAGE_TEST_STOPPED = '\u6d4b\u8bd5\u5df2\u505c\u6b62'
+const MESSAGE_TEST_ROUTE_PREPARING = '\u6d4b\u8bd5\u8def\u7ebf\u51c6\u5907\u4e2d'
+const MESSAGE_PLANNING_ROUTE = '\u89c4\u5212\u8def\u7ebf\u4e2d'
+const MESSAGE_BUILD_ROUTE_FAILED = '\u6d4b\u8bd5\u8def\u7ebf\u751f\u6210\u5931\u8d25'
+const MESSAGE_REACHED_TARGET = '\u5df2\u5230\u8fbe\u6d4b\u8bd5\u7ec8\u70b9'
+const MESSAGE_TEST_START_DEFAULT = '\u6d4b\u8bd5\u5df2\u5f00\u59cb'
+const MESSAGE_TEST_START_DRIVING = '\u9a7e\u8f66\u8def\u7ebf\u6d4b\u8bd5\u4e2d'
+const MESSAGE_TEST_START_WALKING = '\u6b65\u884c\u8def\u7ebf\u6d4b\u8bd5\u4e2d'
+const MESSAGE_TEST_START_MANUAL = '\u9884\u8bbe\u8def\u7ebf\u6d4b\u8bd5\u4e2d'
+const MESSAGE_TEST_START_FALLBACK = '\u76f4\u7ebf\u56de\u9000\u6d4b\u8bd5\u4e2d'
+const MESSAGE_UPLOAD_SUCCESS = '\u4e0a\u62a5\u6210\u529f'
+const MESSAGE_UPLOAD_FAILED = '\u4f4d\u7f6e\u4e0a\u62a5\u5931\u8d25'
 
 Page({
   data: {
@@ -35,7 +73,28 @@ Page({
     speed: '--',
     autoUpload: false,
     mockMode: false,
-    testing: false
+    testing: false,
+    labels: {
+      panelTitle: '\u53f8\u673a\u9762\u677f',
+      driver: '\u53f8\u673a\uff1a',
+      vehicle: '\u8f66\u8f86\uff1a',
+      route: '\u7ebf\u8def\uff1a',
+      loginMode: '\u767b\u5f55\u6a21\u5f0f\uff1a',
+      mockMode: 'Mock \u6a21\u5f0f',
+      realLogin: '\u5fae\u4fe1\u771f\u5b9e\u767b\u5f55',
+      status: '\u72b6\u6001\uff1a',
+      latitude: '\u7eac\u5ea6\uff1a',
+      longitude: '\u7ecf\u5ea6\uff1a',
+      speed: '\u901f\u5ea6\uff1a',
+      startTrip: '\u5f00\u59cb\u53d1\u8f66',
+      uploadOnce: '\u4e0a\u4f20\u4e00\u6b21\u4f4d\u7f6e',
+      startAutoUpload: '\u5f00\u542f\u81ea\u52a8\u4e0a\u4f20',
+      stopAutoUpload: '\u505c\u6b62\u81ea\u52a8\u4e0a\u4f20',
+      startTestRoute: '\u5f00\u59cb\u6d4b\u8bd5\u8def\u7ebf',
+      stopTest: '\u505c\u6b62\u6d4b\u8bd5',
+      stopTrip: '\u7ed3\u675f\u53d1\u8f66',
+      logout: '\u9000\u51fa\u767b\u5f55'
+    }
   },
 
   async onLoad() {
@@ -63,17 +122,20 @@ Page({
     this.testLocationTimer = null
     this.testLocationState = null
     this.testUploadRunning = false
+    this.testRouteCache = null
+    this.testRouteLoading = false
 
     try {
       const me = await request('/api/driver/me')
       this.setData({
         driverName: me.driverName || '',
         vehicleId: me.vehicleId || '',
-        routeId: me.routeId || ''
+        routeId: me.routeId || '',
+        routeName: me.routeName || this.data.routeName
       })
       await this.restoreRuntimeState()
     } catch (e) {
-      wx.showToast({ title: '登录态失效，请重新登录', icon: 'none' })
+      wx.showToast({ title: MESSAGE_LOGIN_EXPIRED, icon: 'none' })
       wx.removeStorageSync('driverInfo')
       wx.redirectTo({ url: '/pages/login/login' })
     }
@@ -161,10 +223,10 @@ Page({
   showLocationPermissionModal() {
     return new Promise(resolve => {
       wx.showModal({
-        title: '需要定位权限',
-        content: '司机端需要获取定位后才能上传车辆位置，请先开启定位权限。',
-        confirmText: '去开启',
-        cancelText: '取消',
+        title: MESSAGE_NEED_LOCATION_PERMISSION,
+        content: MESSAGE_NEED_LOCATION_PERMISSION_DESC,
+        confirmText: MESSAGE_GO_ENABLE,
+        cancelText: MESSAGE_CANCEL,
         success: resolve,
         fail: () => resolve({ confirm: false, cancel: true })
       })
@@ -228,7 +290,7 @@ Page({
       const settingRes = await this.openSetting()
       return !!(settingRes.authSetting && settingRes.authSetting['scope.userLocation'])
     } catch (e) {
-      wx.showToast({ title: '无法打开设置页', icon: 'none' })
+      wx.showToast({ title: MESSAGE_OPEN_SETTING_FAILED, icon: 'none' })
       return false
     }
   },
@@ -253,7 +315,7 @@ Page({
 
       return this.openLocationSetting()
     } catch (e) {
-      wx.showToast({ title: '定位权限检查失败', icon: 'none' })
+      wx.showToast({ title: MESSAGE_CHECK_PERMISSION_FAILED, icon: 'none' })
       return false
     }
   },
@@ -278,6 +340,10 @@ Page({
     return Number(Number(value).toFixed(14))
   },
 
+  roundTestSpeed(value) {
+    return Number(Number(value).toFixed(2))
+  },
+
   createTestRoutePoint(latitude, longitude) {
     return {
       latitude: this.roundTestCoordinate(latitude),
@@ -285,91 +351,228 @@ Page({
     }
   },
 
-  randomBetween(min, max) {
-    return min + Math.random() * (max - min)
+  buildBaseTestRoutePoints() {
+    return [
+      this.createTestRoutePoint(TEST_START_LATITUDE, TEST_START_LONGITUDE),
+      this.createTestRoutePoint(TEST_TARGET_LATITUDE, TEST_TARGET_LONGITUDE)
+    ]
   },
 
-  buildRandomTestRoutePoints() {
-    const startPoint = this.createTestRoutePoint(TEST_START_LATITUDE, TEST_START_LONGITUDE)
-    const targetPoint = this.createTestRoutePoint(TEST_TARGET_LATITUDE, TEST_TARGET_LONGITUDE)
-    const points = [startPoint]
-    const deltaLatitude = TEST_TARGET_LATITUDE - TEST_START_LATITUDE
-    const deltaLongitude = TEST_TARGET_LONGITUDE - TEST_START_LONGITUDE
+  buildManualTestRoutePoints() {
+    return TEST_MANUAL_ROUTE_POINTS.map(([latitude, longitude]) => (
+      this.createTestRoutePoint(latitude, longitude)
+    ))
+  },
 
-    for (let index = 1; index <= TEST_ROUTE_WAYPOINT_COUNT; index += 1) {
-      const progress = index / (TEST_ROUTE_WAYPOINT_COUNT + 1)
-      const baseLatitude = TEST_START_LATITUDE + deltaLatitude * progress
-      const baseLongitude = TEST_START_LONGITUDE + deltaLongitude * progress
-      const offsetRatio = this.randomBetween(TEST_ROUTE_MIN_OFFSET_RATIO, TEST_ROUTE_MAX_OFFSET_RATIO)
-      const direction = Math.random() > 0.5 ? 1 : -1
-      const latitudeOffset = deltaLongitude * offsetRatio * direction
-      const longitudeOffset = -deltaLatitude * offsetRatio * direction
+  deduplicateRoutePoints(routePoints) {
+    const normalizedPoints = []
 
-      points.push(this.createTestRoutePoint(
-        baseLatitude + latitudeOffset,
-        baseLongitude + longitudeOffset
-      ))
+    ;(routePoints || []).forEach(point => {
+      if (!point || typeof point.latitude !== 'number' || typeof point.longitude !== 'number') {
+        return
+      }
+
+      const normalizedPoint = this.createTestRoutePoint(point.latitude, point.longitude)
+      const lastPoint = normalizedPoints[normalizedPoints.length - 1]
+
+      if (
+        !lastPoint
+        || lastPoint.latitude !== normalizedPoint.latitude
+        || lastPoint.longitude !== normalizedPoint.longitude
+      ) {
+        normalizedPoints.push(normalizedPoint)
+      }
+    })
+
+    return normalizedPoints.length ? normalizedPoints : this.buildBaseTestRoutePoints()
+  },
+
+  calculateDistanceMeters(startPoint, endPoint) {
+    const earthRadius = 6378137
+    const toRadians = value => value * Math.PI / 180
+    const deltaLatitude = toRadians(endPoint.latitude - startPoint.latitude)
+    const deltaLongitude = toRadians(endPoint.longitude - startPoint.longitude)
+    const startLatitude = toRadians(startPoint.latitude)
+    const endLatitude = toRadians(endPoint.latitude)
+    const haversine = Math.sin(deltaLatitude / 2) * Math.sin(deltaLatitude / 2)
+      + Math.cos(startLatitude) * Math.cos(endLatitude)
+      * Math.sin(deltaLongitude / 2) * Math.sin(deltaLongitude / 2)
+
+    return 2 * earthRadius * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  },
+
+  interpolateTestRoutePoint(startPoint, endPoint, ratio) {
+    return this.createTestRoutePoint(
+      startPoint.latitude + (endPoint.latitude - startPoint.latitude) * ratio,
+      startPoint.longitude + (endPoint.longitude - startPoint.longitude) * ratio
+    )
+  },
+
+  buildLocationsFromRoutePoints(routePoints) {
+    const points = this.deduplicateRoutePoints(routePoints)
+    if (points.length < 2) {
+      return points.map((point, index) => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+        speed: index === 0 ? 0 : TEST_ROUTE_DEFAULT_SPEED
+      }))
     }
 
-    points.push(targetPoint)
-    return points
-  },
+    const cumulativeDistances = [0]
+    for (let index = 1; index < points.length; index += 1) {
+      cumulativeDistances[index] = cumulativeDistances[index - 1]
+        + this.calculateDistanceMeters(points[index - 1], points[index])
+    }
 
-  buildTestRouteLocations() {
-    const routePoints = this.buildRandomTestRoutePoints()
+    const totalDistance = cumulativeDistances[cumulativeDistances.length - 1]
+    if (totalDistance <= 0) {
+      return points.map((point, index) => ({
+        latitude: point.latitude,
+        longitude: point.longitude,
+        speed: index === 0 ? 0 : TEST_ROUTE_DEFAULT_SPEED
+      }))
+    }
+
     const routeLocations = []
-    const targetPoint = routePoints[routePoints.length - 1]
+    const sampleCount = Math.max(1, Math.ceil(totalDistance / TEST_ROUTE_SAMPLE_DISTANCE_METERS))
+    let segmentIndex = 1
+    let previousDistance = 0
 
-    for (let index = 1; index < routePoints.length; index += 1) {
-      const startPoint = routePoints[index - 1]
-      const endPoint = routePoints[index]
-      const segmentStepCount = Math.max(
-        1,
-        Math.ceil(
-          Math.max(
-            Math.abs(endPoint.latitude - startPoint.latitude),
-            Math.abs(endPoint.longitude - startPoint.longitude)
-          ) / TEST_LOCATION_MAX_DELTA
-        )
-      )
+    for (let sampleIndex = 0; sampleIndex <= sampleCount; sampleIndex += 1) {
+      const targetDistance = sampleIndex === sampleCount
+        ? totalDistance
+        : Math.min(sampleIndex * TEST_ROUTE_SAMPLE_DISTANCE_METERS, totalDistance)
 
-      for (let step = 0; step < segmentStepCount; step += 1) {
-        const progress = step / segmentStepCount
+      while (
+        segmentIndex < cumulativeDistances.length - 1
+        && cumulativeDistances[segmentIndex] < targetDistance
+      ) {
+        segmentIndex += 1
+      }
+
+      const endIndex = Math.min(segmentIndex, points.length - 1)
+      const startIndex = Math.max(0, endIndex - 1)
+      const startPoint = points[startIndex]
+      const endPoint = points[endIndex]
+      const startDistance = cumulativeDistances[startIndex]
+      const endDistance = cumulativeDistances[endIndex]
+      const ratio = endDistance > startDistance
+        ? (targetDistance - startDistance) / (endDistance - startDistance)
+        : 0
+      const routePoint = this.interpolateTestRoutePoint(startPoint, endPoint, ratio)
+      const lastLocation = routeLocations[routeLocations.length - 1]
+
+      if (
+        !lastLocation
+        || lastLocation.latitude !== routePoint.latitude
+        || lastLocation.longitude !== routePoint.longitude
+      ) {
         routeLocations.push({
-          latitude: this.roundTestCoordinate(
-            startPoint.latitude + (endPoint.latitude - startPoint.latitude) * progress
-          ),
-          longitude: this.roundTestCoordinate(
-            startPoint.longitude + (endPoint.longitude - startPoint.longitude) * progress
-          ),
-          speed: 0
+          latitude: routePoint.latitude,
+          longitude: routePoint.longitude,
+          speed: sampleIndex === 0
+            ? 0
+            : this.roundTestSpeed((targetDistance - previousDistance) * 1000 / TEST_LOCATION_INTERVAL_MS)
         })
       }
-    }
 
-    routeLocations.push({
-      latitude: targetPoint.latitude,
-      longitude: targetPoint.longitude,
-      speed: 0
-    })
+      previousDistance = targetDistance
+    }
 
     return routeLocations
   },
 
-  getTestLocationByStep(stepIndex) {
-    if (!this.testLocationState || !Array.isArray(this.testLocationState.routeLocations)) {
-      this.testLocationState = {
-        routeLocations: this.buildTestRouteLocations(),
-        currentStep: 0
+  buildTestRouteLocations() {
+    return this.buildLocationsFromRoutePoints(this.buildManualTestRoutePoints())
+  },
+
+  decodeTencentPolyline(polyline) {
+    if (!Array.isArray(polyline) || polyline.length < 2) {
+      return []
+    }
+
+    const decodedPolyline = polyline.slice()
+    for (let index = 2; index < decodedPolyline.length; index += 1) {
+      decodedPolyline[index] = Number(decodedPolyline[index - 2]) + Number(decodedPolyline[index]) / 1000000
+    }
+
+    const routePoints = []
+    for (let index = 0; index < decodedPolyline.length - 1; index += 2) {
+      routePoints.push(this.createTestRoutePoint(decodedPolyline[index], decodedPolyline[index + 1]))
+    }
+
+    return this.deduplicateRoutePoints(routePoints)
+  },
+
+  requestTencentDirectionRoute(mode) {
+    const [startPoint, targetPoint] = this.buildBaseTestRoutePoints()
+
+    return new Promise((resolve, reject) => {
+      wx.request({
+        url: `https://apis.map.qq.com/ws/direction/v1/${mode}/`,
+        method: 'GET',
+        data: {
+          from: `${startPoint.latitude},${startPoint.longitude}`,
+          to: `${targetPoint.latitude},${targetPoint.longitude}`,
+          key: TENCENT_MAP_DIRECTION_KEY
+        },
+        success: res => {
+          const body = res.data || {}
+          const status = Number(body.status)
+          const routes = body.result && Array.isArray(body.result.routes) ? body.result.routes : []
+          const route = routes[0] || null
+          const routePoints = route ? this.decodeTencentPolyline(route.polyline) : []
+
+          if (res.statusCode >= 400 || status !== 0 || routePoints.length < 2) {
+            reject(body)
+            return
+          }
+
+          resolve({
+            mode,
+            routePoints
+          })
+        },
+        fail: err => reject(err)
+      })
+    })
+  },
+
+  async ensurePlannedTestRouteLocations() {
+    if (
+      this.testRouteCache
+      && Array.isArray(this.testRouteCache.routeLocations)
+      && this.testRouteCache.routeLocations.length > 1
+    ) {
+      return this.testRouteCache
+    }
+
+    let lastError = null
+
+    for (let index = 0; index < TENCENT_MAP_DIRECTION_MODES.length; index += 1) {
+      const mode = TENCENT_MAP_DIRECTION_MODES[index]
+
+      try {
+        const route = await this.requestTencentDirectionRoute(mode)
+        const routeLocations = this.buildLocationsFromRoutePoints(route.routePoints)
+
+        if (routeLocations.length > 1) {
+          this.testRouteCache = {
+            mode,
+            routeLocations
+          }
+          return this.testRouteCache
+        }
+      } catch (e) {
+        lastError = e
       }
     }
 
-    const safeIndex = Math.max(
-      0,
-      Math.min(stepIndex, this.testLocationState.routeLocations.length - 1)
-    )
-
-    return this.testLocationState.routeLocations[safeIndex]
+    return {
+      mode: 'manual',
+      routeLocations: this.buildTestRouteLocations(),
+      error: lastError
+    }
   },
 
   buildTestLocation(advance = false) {
@@ -465,7 +668,7 @@ Page({
 
     const hasPermission = await this.ensureLocationPermission()
     if (!hasPermission) {
-      wx.showToast({ title: '未开启定位权限', icon: 'none' })
+      wx.showToast({ title: MESSAGE_LOCATION_PERMISSION_MISSING, icon: 'none' })
       return false
     }
 
@@ -498,9 +701,9 @@ Page({
     } catch (e) {
       const errMsg = e && e.errMsg ? e.errMsg : ''
       if (this.isLocationServiceError(errMsg)) {
-        wx.showToast({ title: '请打开手机定位服务', icon: 'none' })
+        wx.showToast({ title: MESSAGE_ENABLE_GPS, icon: 'none' })
       } else {
-        wx.showToast({ title: '开启持续定位失败', icon: 'none' })
+        wx.showToast({ title: MESSAGE_START_TRACKING_FAILED, icon: 'none' })
       }
 
       if (this.locationChangeHandler && wx.offLocationChange) {
@@ -572,7 +775,7 @@ Page({
       }
       return success
     } catch (e) {
-      this.stopAutoUploadInternal(true, '首次定位失败')
+      this.stopAutoUploadInternal(true, MESSAGE_FIRST_LOCATION_FAILED)
       this.stopLocationTracking()
       return false
     }
@@ -585,11 +788,11 @@ Page({
       this.setData({ tripStatus: TRIP_STATUS_RUNNING })
       const autoUploadReady = await this.enableAutoUpload({ showUploadToast: false })
       wx.showToast({
-        title: autoUploadReady ? '已发车' : '已发车，请检查定位',
+        title: autoUploadReady ? MESSAGE_TRIP_STARTED : MESSAGE_TRIP_STARTED_CHECK_LOCATION,
         icon: autoUploadReady ? 'success' : 'none'
       })
     } catch (e) {
-      wx.showToast({ title: e.message || e.msg || '发车失败', icon: 'none' })
+      wx.showToast({ title: e.message || e.msg || MESSAGE_TRIP_START_FAILED, icon: 'none' })
     }
   },
 
@@ -609,10 +812,10 @@ Page({
         return true
       }
 
-      wx.showToast({ title: '已结束发车', icon: 'success' })
+      wx.showToast({ title: MESSAGE_TRIP_STOPPED, icon: 'success' })
       return true
     } catch (e) {
-      wx.showToast({ title: e.message || e.msg || '结束发车失败', icon: 'none' })
+      wx.showToast({ title: e.message || e.msg || MESSAGE_TRIP_STOP_FAILED, icon: 'none' })
       return false
     }
   },
@@ -626,7 +829,7 @@ Page({
 
     const hasPermission = await this.ensureLocationPermission()
     if (!hasPermission) {
-      wx.showToast({ title: '未开启定位权限', icon: 'none' })
+      wx.showToast({ title: MESSAGE_LOCATION_PERMISSION_MISSING, icon: 'none' })
       return
     }
 
@@ -638,10 +841,10 @@ Page({
     } catch (e) {
       const errMsg = e && e.errMsg ? e.errMsg : ''
       if (this.isLocationServiceError(errMsg)) {
-        wx.showToast({ title: '请打开手机定位服务', icon: 'none' })
+        wx.showToast({ title: MESSAGE_ENABLE_GPS, icon: 'none' })
         return
       }
-      wx.showToast({ title: '定位失败，请重试', icon: 'none' })
+      wx.showToast({ title: MESSAGE_LOCATION_FAILED, icon: 'none' })
     }
   },
 
@@ -655,60 +858,44 @@ Page({
     await this.enableAutoUpload({ showUploadToast: true })
   },
 
-  async toggleTestLocationLegacy() {
-    if (this.data.testing) {
-      this.stopTestLocationSimulation(true, '测试已停止')
-      return
-    }
-
-    this.stopAutoUploadInternal(false)
-    this.stopLocationTracking()
-    this.testLocationState = null
-
-    const firstLocation = this.buildTestLocation(false)
-    this.latestLocation = firstLocation
-    this.updateLocationPanel(firstLocation)
-    this.setData({ testing: true })
-
-    const firstUploadSuccess = await this.uploadLocation(firstLocation, true)
-    if (!firstUploadSuccess) {
-      this.stopTestLocationSimulation()
-      return
-    }
-
-    this.testLocationTimer = setInterval(async () => {
-      if (!this.data.testing || this.testUploadRunning) {
-        return
-      }
-
-      this.testUploadRunning = true
-
-      try {
-        const nextLocation = this.buildTestLocation(true)
-        this.latestLocation = nextLocation
-        this.updateLocationPanel(nextLocation)
-
-        const success = await this.uploadLocation(nextLocation, true)
-        if (!success) {
-          this.stopTestLocationSimulation(true, '测试已停止')
-        }
-      } finally {
-        this.testUploadRunning = false
-      }
-    }, TEST_LOCATION_INTERVAL_MS)
-
-    wx.showToast({ title: '测试已开始', icon: 'success' })
-  },
-
   async toggleTestLocation() {
     if (this.data.testing) {
-      this.stopTestLocationSimulation(true, '测试已停止')
+      this.stopTestLocationSimulation(true, MESSAGE_TEST_STOPPED)
+      return
+    }
+
+    if (this.testRouteLoading) {
+      wx.showToast({ title: MESSAGE_TEST_ROUTE_PREPARING, icon: 'none' })
       return
     }
 
     this.stopAutoUploadInternal(false)
     this.stopLocationTracking()
     this.testLocationState = null
+    this.testRouteLoading = true
+
+    let routePlan = null
+    wx.showLoading({
+      title: MESSAGE_PLANNING_ROUTE,
+      mask: true
+    })
+
+    try {
+      routePlan = await this.ensurePlannedTestRouteLocations()
+    } finally {
+      this.testRouteLoading = false
+      wx.hideLoading()
+    }
+
+    if (!routePlan || !Array.isArray(routePlan.routeLocations) || !routePlan.routeLocations.length) {
+      wx.showToast({ title: MESSAGE_BUILD_ROUTE_FAILED, icon: 'none' })
+      return
+    }
+
+    this.testLocationState = {
+      routeLocations: routePlan.routeLocations,
+      currentStep: 0
+    }
 
     const firstLocation = this.buildTestLocation(false)
     this.latestLocation = firstLocation
@@ -735,19 +922,29 @@ Page({
 
         const success = await this.uploadLocation(nextLocation, true)
         if (!success) {
-          this.stopTestLocationSimulation(true, '测试已停止')
+          this.stopTestLocationSimulation(true, MESSAGE_TEST_STOPPED)
           return
         }
 
         if (this.hasReachedTestTarget()) {
-          this.stopTestLocationSimulation(true, '已到达测试目标点')
+          this.stopTestLocationSimulation(true, MESSAGE_REACHED_TARGET)
         }
       } finally {
         this.testUploadRunning = false
       }
     }, TEST_LOCATION_INTERVAL_MS)
 
-    wx.showToast({ title: '测试已开始', icon: 'success' })
+    const startMessageMap = {
+      driving: MESSAGE_TEST_START_DRIVING,
+      walking: MESSAGE_TEST_START_WALKING,
+      manual: MESSAGE_TEST_START_MANUAL,
+      fallback: MESSAGE_TEST_START_FALLBACK
+    }
+
+    wx.showToast({
+      title: startMessageMap[routePlan.mode] || MESSAGE_TEST_START_DEFAULT,
+      icon: 'success'
+    })
   },
 
   enqueueUpload(location, force, silent) {
@@ -801,11 +998,11 @@ Page({
       })
 
       if (!silent) {
-        wx.showToast({ title: '上报成功', icon: 'success' })
+        wx.showToast({ title: MESSAGE_UPLOAD_SUCCESS, icon: 'success' })
       }
       return true
     } catch (e) {
-      const msg = e && e.message ? e.message : (e && e.msg ? e.msg : '位置上报失败')
+      const msg = e && e.message ? e.message : (e && e.msg ? e.msg : MESSAGE_UPLOAD_FAILED)
       if (this.data.autoUpload) {
         this.stopAutoUploadInternal(true, msg)
         this.stopLocationTracking()
