@@ -2,8 +2,10 @@ package com.example.shuttle.service;
 
 import com.example.shuttle.config.WechatMiniAppProperties;
 import com.example.shuttle.model.DriverSession;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -21,22 +23,25 @@ public class DriverSessionService {
         this.properties = properties;
     }
 
+    @Transactional
     public DriverSession createOrRefresh(String openId, String vehicleId) {
-        clearExpiredSessions();
-        DriverSession existing = findByOpenId(openId);
-        String token = existing == null ? UUID.randomUUID().toString().replace("-", "") : existing.getLoginToken();
+        String token = generateLoginToken();
         LocalDateTime expireAt = LocalDateTime.now().plusDays(properties.getSessionExpireDays());
-        String sql = """
-                INSERT INTO driver_login_session(login_token, open_id, vehicle_id, expire_at)
-                VALUES (?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                  open_id = VALUES(open_id),
-                  vehicle_id = VALUES(vehicle_id),
-                  expire_at = VALUES(expire_at),
-                  updated_at = NOW()
-                """;
-        jdbcTemplate.update(sql, token, openId, vehicleId, expireAt);
-        return findValidByToken(token);
+
+        int updated = updateSessionByOpenId(token, openId, vehicleId, expireAt);
+        if (updated == 0) {
+            try {
+                insertSession(token, openId, vehicleId, expireAt);
+            } catch (DuplicateKeyException ex) {
+                updateSessionByOpenId(token, openId, vehicleId, expireAt);
+            }
+        }
+
+        DriverSession session = findByOpenId(openId);
+        if (session == null) {
+            throw new IllegalStateException("Failed to create driver session");
+        }
+        return session;
     }
 
     public DriverSession findValidByToken(String token) {
@@ -61,10 +66,6 @@ public class DriverSessionService {
         return session;
     }
 
-    public void clearExpiredSessions() {
-        jdbcTemplate.update("DELETE FROM driver_login_session WHERE expire_at <= NOW()");
-    }
-
     private DriverSession findByOpenId(String openId) {
         String sql = """
                 SELECT login_token, open_id, vehicle_id, expire_at
@@ -85,5 +86,26 @@ public class DriverSessionService {
             session.setExpireAt(rs.getTimestamp("expire_at").toLocalDateTime());
         }
         return session;
+    }
+
+    private int updateSessionByOpenId(String token, String openId, String vehicleId, LocalDateTime expireAt) {
+        String sql = """
+                UPDATE driver_login_session
+                SET login_token = ?, vehicle_id = ?, expire_at = ?, updated_at = NOW()
+                WHERE open_id = ?
+                """;
+        return jdbcTemplate.update(sql, token, vehicleId, expireAt, openId);
+    }
+
+    private void insertSession(String token, String openId, String vehicleId, LocalDateTime expireAt) {
+        String sql = """
+                INSERT INTO driver_login_session(login_token, open_id, vehicle_id, expire_at)
+                VALUES (?, ?, ?, ?)
+                """;
+        jdbcTemplate.update(sql, token, openId, vehicleId, expireAt);
+    }
+
+    private String generateLoginToken() {
+        return UUID.randomUUID().toString().replace("-", "");
     }
 }
