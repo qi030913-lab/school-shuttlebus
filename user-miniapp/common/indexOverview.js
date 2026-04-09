@@ -1,6 +1,10 @@
 const { request } = require('./request')
 
 module.exports = {
+  getOverviewErrorMessage(message) {
+    return message || '加载失败，请稍后重试'
+  },
+
   async loadRoutes() {
     try {
       const routes = await request('/api/common/routes')
@@ -17,7 +21,10 @@ module.exports = {
         await this.loadOverview(false, first.routeId)
       }
     } catch (e) {
-      wx.showToast({ title: '鍔犺浇绾胯矾澶辫触', icon: 'none' })
+      wx.showToast({
+        title: this.getOverviewErrorMessage('加载线路失败，请稍后重试'),
+        icon: 'none'
+      })
     }
   },
 
@@ -52,6 +59,7 @@ module.exports = {
   async loadOverview(showLoading = true, routeId = '') {
     const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : true
     const targetRouteId = routeId || this.data.currentRouteId
+    const shouldToastError = shouldShowLoading || !!routeId
     if (!targetRouteId) {
       return
     }
@@ -69,7 +77,12 @@ module.exports = {
       const includeVehicles = !(isBackgroundPoll && this.socketStatus === 'connected')
       this.applyOverview(overview, { includeVehicles })
     } catch (e) {
-      wx.showToast({ title: '鍒锋柊澶辫触', icon: 'none' })
+      if (shouldToastError) {
+        wx.showToast({
+          title: this.getOverviewErrorMessage('获取车辆信息失败，请稍后重试'),
+          icon: 'none'
+        })
+      }
     } finally {
       if (shouldShowLoading) {
         this.setData({ refreshing: false })

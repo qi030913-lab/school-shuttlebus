@@ -1,6 +1,12 @@
 const { request } = require('./request')
 
 module.exports = {
+  getVehiclesOverviewErrorMessage() {
+    return this.data.detailMode
+      ? '获取车辆详情失败，请稍后重试'
+      : '获取车辆信息失败，请稍后重试'
+  },
+
   async loadOverview(showLoading = true) {
     const shouldShowLoading = typeof showLoading === 'boolean' ? showLoading : true
     if (!this.data.routeId && !this.data.vehicleId) {
@@ -31,7 +37,10 @@ module.exports = {
       })
       this.applyVehicles(Array.isArray(overview.vehicles) ? overview.vehicles : [])
     } catch (e) {
-      wx.showToast({ title: '刷新失败', icon: 'none' })
+      wx.showToast({
+        title: this.getVehiclesOverviewErrorMessage(),
+        icon: 'none'
+      })
     } finally {
       if (shouldShowLoading) {
         this.setData({ refreshing: false })
