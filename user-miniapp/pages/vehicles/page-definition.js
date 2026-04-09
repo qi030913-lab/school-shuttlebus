@@ -18,8 +18,6 @@ const pageDefinition = {
     refreshing: false,
     socketStatusText: '实时连接中',
     socketStatusClass: 'status-connecting',
-    liveVehicleCount: 0,
-    stoppedVehicleCount: 0,
     lastUpdateText: '--:--:--',
     pageTitle: '车辆明细',
     pageSubtitle: '实时展示司机、状态、速度、经纬度与更新时间',

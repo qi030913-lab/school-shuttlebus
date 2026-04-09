@@ -35,8 +35,6 @@ module.exports = {
     const decoratedVehicles = visibleVehicles.map(item => this.decorateVehicle(item, receivedAt))
     this.setData({
       vehicles: decoratedVehicles,
-      liveVehicleCount: decoratedVehicles.length,
-      stoppedVehicleCount: decoratedVehicles.filter(item => item.status === 'STOPPED').length,
       lastUpdateText: this.formatClock(new Date())
     })
   },
