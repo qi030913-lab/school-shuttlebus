@@ -63,7 +63,6 @@ module.exports = {
           this.handleSocketParseError(error, res)
           return
         }
-        console.log('socket parse skip', error)
       }
     })
 

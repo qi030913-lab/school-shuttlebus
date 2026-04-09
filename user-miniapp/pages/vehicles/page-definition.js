@@ -92,8 +92,7 @@ const pageDefinition = {
     this.applyVehicles(vehicles)
   },
 
-  handleSocketParseError(error) {
-    console.log('vehicle socket parse skip', error)
+  handleSocketParseError() {
   },
 
   setSocketStatus(status) {

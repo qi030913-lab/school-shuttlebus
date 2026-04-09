@@ -9,7 +9,6 @@ const VEHICLE_MAP_ID = 'vehicleMap'
 const POLL_INTERVAL_MS = 15000
 const SOCKET_RETRY_BASE_MS = 2000
 const SOCKET_RETRY_MAX_MS = 15000
-const LOCATION_DEBUG_PREFIX = '[index][location]'
 const DEFAULT_USER_LOCATION = Object.freeze({
   latitude: 36.239600,
   longitude: 117.292518
@@ -33,12 +32,7 @@ const pageDefinition = {
     userLocationText: DEFAULT_USER_LOCATION_TEXT
   },
 
-  logLocationDebug(step, payload) {
-    if (payload === undefined) {
-      console.log(LOCATION_DEBUG_PREFIX, step)
-      return
-    }
-    console.log(LOCATION_DEBUG_PREFIX, step, payload)
+  logLocationDebug() {
   },
 
   getRuntimeInfo() {
@@ -202,8 +196,7 @@ const pageDefinition = {
     this.applyVehicles(vehicles)
   },
 
-  handleSocketParseError(error) {
-    console.log('socket parse skip', error)
+  handleSocketParseError() {
   },
 
   ensureMapContext() {
