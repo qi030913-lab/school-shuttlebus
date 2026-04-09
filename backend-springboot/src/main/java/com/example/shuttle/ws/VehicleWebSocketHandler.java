@@ -26,17 +26,40 @@ public class VehicleWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
+    public void handleTransportError(WebSocketSession session, Throwable exception) {
+        removeSession(session, CloseStatus.SERVER_ERROR);
+    }
+
+    @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         session.sendMessage(new TextMessage("connected"));
     }
 
     public void broadcast(String json) {
         for (WebSocketSession session : sessions) {
-            if (session.isOpen()) {
-                try {
-                    session.sendMessage(new TextMessage(json));
-                } catch (IOException ignored) {
-                }
+            if (!session.isOpen()) {
+                sessions.remove(session);
+                continue;
+            }
+
+            try {
+                session.sendMessage(new TextMessage(json));
+            } catch (IOException ex) {
+                removeSession(session, CloseStatus.SERVER_ERROR);
+            }
+        }
+    }
+
+    private void removeSession(WebSocketSession session, CloseStatus closeStatus) {
+        if (session == null) {
+            return;
+        }
+
+        sessions.remove(session);
+        if (session.isOpen()) {
+            try {
+                session.close(closeStatus);
+            } catch (IOException ignored) {
             }
         }
     }
