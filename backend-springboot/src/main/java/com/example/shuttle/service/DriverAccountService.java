@@ -1,8 +1,11 @@
 package com.example.shuttle.service;
 
+import com.example.shuttle.exception.DriverAccountConflictException;
 import com.example.shuttle.model.DriverAccount;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -17,23 +20,26 @@ public class DriverAccountService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    @Transactional
     public DriverAccount bindOrRegisterByOpenId(String openId, String driverName, String vehicleId, String routeId) {
-        String sql = """
-                INSERT INTO driver_account(open_id, driver_name, phone, vehicle_id, route_id, enabled)
-                VALUES (?, ?, NULL, ?, ?, 1)
-                ON DUPLICATE KEY UPDATE
-                  driver_name = VALUES(driver_name),
-                  vehicle_id = VALUES(vehicle_id),
-                  route_id = VALUES(route_id),
-                  enabled = 1,
-                  updated_at = NOW()
-                """;
-        jdbcTemplate.update(sql, openId, driverName, vehicleId, routeId);
-        DriverAccount account = findByOpenId(openId);
-        if (account != null) {
-            return account;
+        DriverAccount existingByOpenId = findByOpenId(openId);
+        DriverAccount existingByVehicleId = findByVehicleId(vehicleId);
+
+        if (existingByVehicleId != null && !openId.equals(existingByVehicleId.getOpenId())) {
+            throw new DriverAccountConflictException("Vehicle is already bound to another driver account");
         }
-        return findByVehicleId(vehicleId);
+
+        try {
+            if (existingByOpenId == null) {
+                insertAccount(openId, driverName, vehicleId, routeId);
+            } else {
+                updateAccountByOpenId(openId, driverName, vehicleId, routeId);
+            }
+        } catch (DuplicateKeyException ex) {
+            throw new DriverAccountConflictException("Vehicle is already bound to another driver account", ex);
+        }
+
+        return findByOpenId(openId);
     }
 
     public DriverAccount findByOpenId(String openId) {
@@ -67,5 +73,22 @@ public class DriverAccountService {
         account.setRouteId(rs.getString("route_id"));
         account.setEnabled(rs.getBoolean("enabled"));
         return account;
+    }
+
+    private void insertAccount(String openId, String driverName, String vehicleId, String routeId) {
+        String sql = """
+                INSERT INTO driver_account(open_id, driver_name, phone, vehicle_id, route_id, enabled)
+                VALUES (?, ?, NULL, ?, ?, 1)
+                """;
+        jdbcTemplate.update(sql, openId, driverName, vehicleId, routeId);
+    }
+
+    private void updateAccountByOpenId(String openId, String driverName, String vehicleId, String routeId) {
+        String sql = """
+                UPDATE driver_account
+                SET driver_name = ?, vehicle_id = ?, route_id = ?, enabled = 1, updated_at = NOW()
+                WHERE open_id = ?
+                """;
+        jdbcTemplate.update(sql, driverName, vehicleId, routeId, openId);
     }
 }

@@ -3,6 +3,7 @@ package com.example.shuttle.controller;
 import com.example.shuttle.dto.DriverLoginRequest;
 import com.example.shuttle.dto.DriverWxLoginRequest;
 import com.example.shuttle.dto.LocationUploadRequest;
+import com.example.shuttle.exception.DriverAccountConflictException;
 import com.example.shuttle.exception.TripStateException;
 import com.example.shuttle.model.ApiResponse;
 import com.example.shuttle.model.DriverAccount;
@@ -114,6 +115,12 @@ public class DriverController {
 
     @ExceptionHandler(TripStateException.class)
     public ResponseEntity<ApiResponse<Object>> handleTripState(TripStateException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+
+    @ExceptionHandler(DriverAccountConflictException.class)
+    public ResponseEntity<ApiResponse<Object>> handleDriverAccountConflict(DriverAccountConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ApiResponse<>(false, ex.getMessage(), null));
     }
