@@ -1,6 +1,5 @@
 package com.example.shuttle.controller;
 
-import com.example.shuttle.dto.DriverLoginRequest;
 import com.example.shuttle.dto.DriverWxLoginRequest;
 import com.example.shuttle.dto.LocationUploadRequest;
 import com.example.shuttle.exception.DriverAccountConflictException;
@@ -76,7 +75,7 @@ public class DriverController {
     }
 
     @PostMapping("/start")
-    public ResponseEntity<ApiResponse<VehicleLocation>> start(@RequestBody DriverLoginRequest request, HttpServletRequest servletRequest) {
+    public ResponseEntity<ApiResponse<VehicleLocation>> start(HttpServletRequest servletRequest) {
         DriverAccount account = requireDriverAccount(servletRequest);
         VehicleLocation location = vehicleLocationService.startTrip(account.getVehicleId(), account.getDriverName(), account.getRouteId());
         pushAllVehicles();
@@ -84,7 +83,7 @@ public class DriverController {
     }
 
     @PostMapping("/stop")
-    public ResponseEntity<ApiResponse<VehicleLocation>> stop(@RequestBody DriverLoginRequest request, HttpServletRequest servletRequest) {
+    public ResponseEntity<ApiResponse<VehicleLocation>> stop(HttpServletRequest servletRequest) {
         DriverAccount account = requireDriverAccount(servletRequest);
         VehicleLocation location = vehicleLocationService.stopTrip(account.getVehicleId());
         pushAllVehicles();
