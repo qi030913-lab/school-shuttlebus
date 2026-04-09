@@ -6,6 +6,7 @@ import com.example.shuttle.model.RouteOverview;
 import com.example.shuttle.model.VehicleLocation;
 import com.example.shuttle.service.RouteService;
 import com.example.shuttle.service.VehicleLocationService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -37,7 +38,8 @@ public class UserController {
     public ResponseEntity<ApiResponse<VehicleLocation>> getVehicle(@PathVariable String vehicleId) {
         VehicleLocation location = vehicleLocationService.getByVehicleId(vehicleId);
         if (location == null) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(false, "Vehicle not found", null));
         }
         return ResponseEntity.ok(ApiResponse.ok(location));
     }
