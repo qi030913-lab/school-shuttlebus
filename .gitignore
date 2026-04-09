@@ -3,3 +3,5 @@ backend-springboot/.idea/
 
 # 忽略后端 Maven 编译目录
 backend-springboot/target/
+# 忽略vscode配置
+.vscode/
