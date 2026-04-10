@@ -3,5 +3,6 @@
   "projectname": "driver-miniapp",
   "setting": {
     "compileHotReLoad": true
-  }
+  },
+  "libVersion": "3.15.0"
 }
